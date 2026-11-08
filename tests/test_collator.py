@@ -110,7 +110,7 @@ class TestDigestAndStore(unittest.TestCase):
             self.assertTrue(all("moj" in a.departments for a in only_moj))
 
         html = render_html(arts, CONFIG, 24)
-        self.assertIn("Also covered by", html)
+        self.assertIn("also reported by", html)
         self.assertIn('id="home-office"', html)
         md = render_markdown(arts, CONFIG, 24, only="moj")
         self.assertIn("## Ministry of Justice", md)
@@ -127,7 +127,7 @@ class TestDigestAndStore(unittest.TestCase):
             self.assertIn('href="departments/moj.html"', index)
             moj = (out / "departments" / "moj.html").read_text()
             self.assertIn('href="../index.html"', moj)
-            self.assertIn('href="moj.html" class="on"', moj)
+            self.assertIn('href="moj.html" aria-current="page"', moj)
             self.assertIn("Prisons near capacity", moj)
             self.assertNotIn("small boats", moj)
 
@@ -159,10 +159,10 @@ class TestOfficial(unittest.TestCase):
                           published=datetime(2026, 11, 1, tzinfo=timezone.utc), departments={"moj": 100})
         md = render_markdown(news + [release], CONFIG, 24, only="moj")
         items = [l for l in md.splitlines() if l.startswith("- ")]
-        self.assertTrue(items[0].startswith("- 📌 *GOV.UK:*"))  # pinned despite being oldest
+        self.assertTrue(items[0].startswith("- *Official, GOV.UK:*"))  # pinned despite being oldest
         self.assertEqual(len(items), 2)  # identical headline not merged into the release
         html = render_html(news + [release], CONFIG, 24, only="moj")
-        self.assertIn('<article class="pinned">', html)
+        self.assertIn('<div class="group official"><h3>Official</h3>', html)
 
     def test_statements_windowed_by_day(self):
         """A statement dated midnight on the window's first day is still included."""
