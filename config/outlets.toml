@@ -1,0 +1,80 @@
+# ---------------------------------------------------------------------------
+# News outlets and their RSS / Atom feeds.
+#
+# Each [[outlet]] block is one source. An outlet can list several feeds (e.g.
+# a politics feed and a UK news feed); articles are de-duplicated by URL, so
+# overlap between feeds is harmless.
+#
+# Set `enabled = false` to skip an outlet without deleting it.
+# Feed URLs do change occasionally — run `python -m news_collator check-feeds`
+# to see which ones are responding.
+# ---------------------------------------------------------------------------
+
+[[outlet]]
+name = "BBC News"
+enabled = true
+feeds = [
+  "https://feeds.bbci.co.uk/news/politics/rss.xml",
+  "https://feeds.bbci.co.uk/news/uk/rss.xml",
+  "https://feeds.bbci.co.uk/news/health/rss.xml",
+  "https://feeds.bbci.co.uk/news/education/rss.xml",
+  "https://feeds.bbci.co.uk/news/business/rss.xml",
+]
+
+[[outlet]]
+name = "The Guardian"
+enabled = true
+feeds = [
+  "https://www.theguardian.com/politics/rss",
+  "https://www.theguardian.com/uk-news/rss",
+  "https://www.theguardian.com/society/rss",
+  "https://www.theguardian.com/law/rss",
+  "https://www.theguardian.com/environment/rss",
+]
+
+[[outlet]]
+name = "Sky News"
+enabled = true
+feeds = [
+  "https://feeds.skynews.com/feeds/rss/politics.xml",
+  "https://feeds.skynews.com/feeds/rss/uk.xml",
+]
+
+[[outlet]]
+name = "The Independent"
+enabled = true
+feeds = [
+  "https://www.independent.co.uk/news/uk/politics/rss",
+  "https://www.independent.co.uk/news/uk/home-news/rss",
+]
+
+[[outlet]]
+name = "The Telegraph"
+enabled = true
+feeds = [
+  "https://www.telegraph.co.uk/politics/rss.xml",
+  "https://www.telegraph.co.uk/news/rss.xml",
+]
+
+[[outlet]]
+name = "Financial Times"
+enabled = true
+feeds = [
+  "https://www.ft.com/world/uk?format=rss",
+]
+
+[[outlet]]
+name = "PoliticsHome"
+enabled = true
+feeds = [
+  "https://www.politicshome.com/news/rss",
+]
+
+# Official announcements from GOV.UK (Atom). Disabled by default because these
+# are press releases rather than coverage, but useful alongside the press.
+[[outlet]]
+name = "GOV.UK announcements"
+enabled = false
+feeds = [
+  "https://www.gov.uk/search/news-and-communications.atom",
+]

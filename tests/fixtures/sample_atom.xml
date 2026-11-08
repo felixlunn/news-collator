@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Sample Atom</title>
+  <entry>
+    <title>Small boats crossings: Home Secretary sets out new plan</title>
+    <link rel="alternate" href="https://other.example.org/boats"/>
+    <summary>Ministers say asylum backlog will fall.</summary>
+    <updated>2026-11-08T10:15:00Z</updated>
+  </entry>
+  <entry>
+    <title>Resident doctors vote on strike over NHS pay</title>
+    <link href="https://other.example.org/nhs-strike"/>
+    <summary>The Health Secretary urged talks; waiting lists remain high.</summary>
+    <published>2026-11-08T06:00:00+01:00</published>
+  </entry>
+</feed>

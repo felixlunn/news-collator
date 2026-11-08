@@ -1,0 +1,188 @@
+# ---------------------------------------------------------------------------
+# Research departments, mirroring UK government ministerial departments.
+#
+# For each department:
+#   name     – display name
+#   strong   – terms that almost certainly mean the story belongs here
+#              (department name, secretary of state title, flagship bodies).
+#              Each match scores STRONG_WEIGHT (see classify.py).
+#   keywords – policy-area terms. Each match scores 1.
+#   exclude  – terms that, if present, veto the department for that article
+#              (useful to stop e.g. "court" in sports stories). Optional.
+#
+# Matching is case-insensitive and on whole words, except for terms written
+# entirely in capitals (acronyms such as "SEND", "AI", "PIP"), which are
+# matched case-sensitively so they don't catch ordinary words; a trailing * matches any
+# word ending, so "prison*" matches prison, prisons, prisoner, prisoners.
+# Matches in the headline count double. An article can belong to several
+# departments.
+#
+# Ministers' names are deliberately left out — they change at every reshuffle.
+# Add them locally if you want them, but remember to maintain them.
+# ---------------------------------------------------------------------------
+
+[departments.home-office]
+name = "Home Office"
+strong = ["Home Office", "Home Secretary", "Border Force", "MI5", "National Crime Agency"]
+keywords = [
+  "immigration", "asylum", "small boats", "Channel crossing*", "migrant*", "visa*",
+  "deport*", "police", "policing", "chief constable", "counter-terror*", "terroris*",
+  "knife crime", "antisocial behaviour", "grooming gang*", "passport*", "net migration",
+  "refugee*", "hotel* for asylum", "extremis*", "protest law*",
+]
+
+[departments.moj]
+name = "Ministry of Justice"
+strong = ["Ministry of Justice", "Justice Secretary", "Lord Chancellor", "HM Prison", "Probation Service", "Parole Board"]
+keywords = [
+  "prison*", "jail*", "sentencing", "sentence*", "court backlog*", "Crown Court",
+  "magistrate*", "jury", "juries", "legal aid", "probation", "early release",
+  "reoffend*", "judge*", "judiciary", "tribunal*", "victims' commissioner", "barrister*",
+]
+exclude = ["tennis", "basketball", "food court"]
+
+[departments.treasury]
+name = "HM Treasury"
+strong = ["Treasury", "Chancellor of the Exchequer", "Autumn Budget", "Spring Statement", "Spending Review", "Office for Budget Responsibility", "OBR"]
+keywords = [
+  "Chancellor", "Budget", "fiscal", "income tax", "national insurance", "VAT", "tax rise*", "tax cut*",
+  "borrowing", "public finances", "national debt", "gilt*", "Bank of England",
+  "interest rate*", "inflation", "fiscal rule*", "windfall tax", "stamp duty",
+  "capital gains", "inheritance tax", "public spending",
+]
+
+[departments.cabinet-office]
+name = "Cabinet Office & No 10"
+strong = ["Cabinet Office", "Downing Street", "No 10", "Number 10", "Cabinet Secretary"]
+keywords = [
+  "Prime Minister", "reshuffle", "civil service", "civil servant*", "ministerial code", "propriety and ethics",
+  "machinery of government", "constitution*", "electoral reform", "Elections Act",
+  "House of Lords reform", "honours", "government procurement", "Covid inquiry",
+]
+
+[departments.mod]
+name = "Ministry of Defence"
+strong = ["Ministry of Defence", "MoD", "Defence Secretary", "Armed Forces", "British Army", "Royal Navy", "RAF"]
+keywords = [
+  "defence spending", "military", "troops", "soldier*", "veteran*", "NATO",
+  "nuclear deterrent", "Trident", "AUKUS", "warship*", "fighter jet*", "Strategic Defence Review",
+  "conscription", "national service",
+]
+
+[departments.fcdo]
+name = "Foreign, Commonwealth & Development Office"
+strong = ["Foreign Office", "FCDO", "Foreign Secretary", "foreign aid", "overseas aid"]
+keywords = [
+  "diplomat*", "ambassador*", "embassy", "embassies", "sanction*", "Ukraine", "Russia*",
+  "Gaza", "Israel*", "Middle East", "China", "Chagos", "United Nations", "G7", "G20",
+  "ceasefire", "international development", "Commonwealth",
+]
+
+[departments.dhsc]
+name = "Health & Social Care"
+strong = ["Department of Health", "DHSC", "Health Secretary", "NHS", "social care"]
+keywords = [
+  "hospital*", "A&E", "waiting list*", "waiting time*", "junior doctor*", "resident doctor*",
+  "nurse", "nurses", "nursing", "GP", "GPs", "patient*", "mental health", "public health", "vaccin*", "ambulance*",
+  "care home*", "assisted dying", "prescription*", "dentist*", "NICE",
+]
+
+[departments.dfe]
+name = "Education"
+strong = ["Department for Education", "DfE", "Education Secretary", "Ofsted", "Ofqual"]
+keywords = [
+  "school*", "pupil*", "teacher*", "headteacher*", "academy", "academies", "curriculum",
+  "SEND", "special educational needs", "university", "universities", "tuition fee*",
+  "student loan*", "apprenticeship*", "childcare", "nursery", "nurseries", "GCSE*", "A-level*",
+  "free school meals", "further education",
+]
+
+[departments.dwp]
+name = "Work & Pensions"
+strong = ["Department for Work and Pensions", "DWP", "Work and Pensions Secretary", "Universal Credit", "state pension"]
+keywords = [
+  "benefit*", "welfare", "PIP", "personal independence payment", "disability benefit*",
+  "two-child limit", "two-child benefit cap", "pension*", "triple lock", "jobcentre*",
+  "unemployment", "economic inactivity", "winter fuel payment*", "child poverty",
+]
+
+[departments.desnz]
+name = "Energy Security & Net Zero"
+strong = ["Department for Energy Security", "DESNZ", "Energy Secretary", "net zero", "Ofgem", "Great British Energy"]
+keywords = [
+  "energy bill*", "energy price cap", "price cap", "renewable*", "wind farm*", "offshore wind",
+  "solar", "nuclear power", "Sizewell", "Hinkley", "North Sea", "oil and gas", "heat pump*",
+  "carbon capture", "grid connection*", "climate target*", "emissions",
+]
+
+[departments.dbt]
+name = "Business & Trade"
+strong = ["Department for Business and Trade", "Business Secretary", "Trade Secretary", "trade deal*", "Employment Rights Bill"]
+keywords = [
+  "tariff*", "exports", "imports", "steel", "British Steel", "manufactur*", "workers' rights",
+  "minimum wage", "living wage", "trade union*", "industrial strategy", "small business*",
+  "Post Office", "high street", "free trade", "CPTPP",
+]
+
+[departments.dsit]
+name = "Science, Innovation & Technology"
+strong = ["Department for Science", "DSIT", "Technology Secretary", "Science Secretary", "Online Safety Act", "Ofcom"]
+keywords = [
+  "artificial intelligence", "AI", "tech firm*", "big tech", "social media", "data centre*",
+  "broadband", "5G", "cyber*", "semiconductor*", "research funding", "UKRI", "quantum",
+  "digital ID", "age verification", "online harms",
+]
+
+[departments.dcms]
+name = "Culture, Media & Sport"
+strong = ["Department for Culture", "DCMS", "Culture Secretary", "BBC licence fee", "BBC charter"]
+keywords = [
+  "licence fee", "arts funding", "museum*", "gambling", "football regulator", "press regulation",
+  "Leveson", "heritage", "tourism", "creative industries", "lottery", "public service broadcast*",
+]
+
+[departments.defra]
+name = "Environment, Food & Rural Affairs"
+strong = ["Defra", "Environment Secretary", "Environment Agency", "water companies", "Ofwat"]
+keywords = [
+  "farmer*", "farming", "agricultur*", "family farm tax", "sewage", "water bill*", "Thames Water",
+  "flood*", "food security", "food prices", "fishing", "fisheries", "biodiversity",
+  "bird flu", "bovine TB", "rural", "pollution", "air quality",
+]
+
+[departments.mhclg]
+name = "Housing, Communities & Local Government"
+strong = ["Ministry of Housing", "MHCLG", "Housing Secretary", "Communities Secretary", "local government"]
+keywords = [
+  "housing", "housebuild*", "new homes", "planning reform", "planning permission", "green belt",
+  "grey belt", "social housing", "renters", "Renters' Rights", "no-fault eviction*", "landlord*",
+  "council tax", "council*", "devolution", "metro mayor*", "homeless*", "leasehold*", "Grenfell",
+  "building safety", "cladding", "local election*",
+]
+
+[departments.dft]
+name = "Transport"
+strong = ["Department for Transport", "DfT", "Transport Secretary", "HS2", "Great British Railways"]
+keywords = [
+  "rail*", "train", "trains", "railway*", "bus fare*", "buses", "rail fare*", "road", "roads", "pothole*",
+  "motorway*", "airport*", "Heathrow", "third runway", "aviation", "electric vehicle*", "EV", "EVs",
+  "speed limit*", "driving test*", "DVLA", "nationalis*", "Network Rail",
+]
+exclude = ["road to recovery"]
+
+[departments.territorial]
+name = "Territorial Offices (NI, Scotland, Wales)"
+strong = ["Northern Ireland Office", "Scotland Office", "Wales Office", "Northern Ireland Secretary", "Scottish Secretary", "Welsh Secretary"]
+keywords = [
+  "Stormont", "Holyrood", "Senedd", "Scottish Government", "Welsh Government",
+  "independence referendum", "Windsor Framework", "Legacy Act", "Barnett formula",
+  "First Minister", "devolved",
+]
+
+[departments.ago]
+name = "Law Officers (Attorney General)"
+strong = ["Attorney General", "Solicitor General", "Crown Prosecution Service", "CPS", "Serious Fraud Office"]
+keywords = [
+  "prosecut*", "unduly lenient", "legal advice", "international law", "ECHR",
+  "European Convention on Human Rights", "Human Rights Act", "rule of law",
+]

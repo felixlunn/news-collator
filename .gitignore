@@ -1,0 +1,9 @@
+# Generated data — rebuilt on each run
+data/
+output/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/

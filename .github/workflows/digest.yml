@@ -1,0 +1,37 @@
+# Builds the news digests every weekday morning and stores them as a
+# downloadable workflow artifact. Can also be triggered manually from the
+# Actions tab ("Run workflow").
+name: Daily digest
+
+on:
+  schedule:
+    - cron: "0 6 * * 1-5"   # 06:00 UTC, Mon–Fri
+  workflow_dispatch:
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run tests
+        run: python -m unittest discover tests
+
+      - name: Fetch and build combined digest
+        run: python -m news_collator run --hours 24
+
+      - name: Build per-department digests
+        run: |
+          for dept in $(python -m news_collator departments | cut -d' ' -f1); do
+            python -m news_collator digest --dept "$dept" --hours 24
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ github.run_number }}
+          path: output/
+          retention-days: 14

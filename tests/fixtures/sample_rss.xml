@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample Politics</title>
+    <item>
+      <title>Home Secretary unveils plan to curb small boats crossings</title>
+      <link>https://news.example.com/politics/boats-plan?at_medium=RSS&amp;utm_source=feed</link>
+      <description>&lt;p&gt;The Home Office will expand returns agreements as asylum claims rise.&lt;/p&gt;</description>
+      <pubDate>Sun, 08 Nov 2026 09:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Prisons near capacity as early release scheme extended</title>
+      <link>https://news.example.com/uk/prisons-capacity</link>
+      <description>The Justice Secretary said sentencing reform would ease pressure on the Probation Service.</description>
+      <pubDate>Sun, 08 Nov 2026 08:30:00 +0000</pubDate>
+    </item>
+    <item>
+      <title>Premier League: late winner seals derby</title>
+      <link>https://news.example.com/sport/derby</link>
+      <description>A dramatic finish at the stadium.</description>
+      <pubDate>Sun, 08 Nov 2026 07:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Item with no link is skipped</title>
+    </item>
+  </channel>
+</rss>
