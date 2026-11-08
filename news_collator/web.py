@@ -493,15 +493,16 @@ def _sidebar(sections, tag_sections, links: _Links, current: str = "") -> tuple[
     return nav, select
 
 
-def _footer(config: Config) -> str:
+def _footer(config: Config, searched: bool = False) -> str:
     outlets = ", ".join(dict.fromkeys(o.name for o in config.outlets if o.enabled))  # unique, in order
     official = [label for on, label in ((config.official.govuk, "GOV.UK"),
                                         (config.official.written_statements, "UK Parliament written statements"))
                 if on]
     sources = outlets + (f"; and official sources: {', '.join(official)}" if official else "")
     return (f'<footer>Times are UK time. News is matched to departments automatically by keyword; '
-            f'official items are filed under the department that issued them; tags also include '
-            f'results from a media search of UK outlets. Sources: {esc(sources)}.</footer>')
+            f'official items are filed under the department that issued them. '
+            + ('Tags also include results from a media search of UK outlets. ' if searched else '')
+            + f'Sources: {esc(sources)}.</footer>')
 
 
 def _page(title: str, mast: str, content: str, extra_head: str = "", extra_script: str = "") -> str:
@@ -569,7 +570,7 @@ def render_html(articles: list[Article], config: Config, hours: int, only: str |
                    f'<div class="dept-head"><div><h1 class="page-title">{esc(name)}</h1>'
                    f'<p class="page-sub">{sub}</p></div>{_tally(stories, today)}</div>'
                    f'{groups}<p id="no-match" class="no-match">No headlines match that filter.</p>'
-                   f'{_footer(config)}</main></div>')
+                   f'{_footer(config, bool(tags))}</main></div>')
         return _page(f"{name} | {SITE_NAME}", _masthead(links, _updated(now), with_filter=True), content)
 
     total = sum(len(s[2]) for s in sections)
@@ -617,7 +618,7 @@ def render_tag_page(articles: list[Article], config: Config, hours: int, tags: t
                f'<p class="page-sub">{sub}</p><p class="terms">Searches for: {esc(terms)}</p></div>'
                f'{_tally(stories, now.date())}</div>'
                f'{groups}<p id="no-match" class="no-match">No headlines match that filter.</p>'
-               f'{_footer(config)}</main></div>')
+               f'{_footer(config, bool(tags))}</main></div>')
     return _page(f"{tag.name} | {SITE_NAME}", _masthead(links, _updated(now), with_filter=True), content)
 
 
@@ -661,7 +662,7 @@ def render_channels_page(articles: list[Article], config: Config, hours: int, ta
                f'<div id="channels-app" aria-live="polite"><p class="empty">Loading channels…</p></div>'
                f'<noscript><p class="empty">Channels need JavaScript, which is turned off in this browser. '
                f'Department and tag pages work without it.</p></noscript>'
-               f'{_footer(config)}</main></div>')
+               f'{_footer(config, bool(tags))}</main></div>')
     script = (f'<script id="channel-data" type="application/json">{payload}</script>'
               f'<script>{_static("channels.js")}</script>')
     return _page(f"Your channels | {SITE_NAME}", _masthead(links, _updated(now), with_filter=False), content,
@@ -705,6 +706,8 @@ def build_site(articles: list[Article], config: Config, hours: int, out_dir: Pat
     articles = drop_duplicate_search_results(articles)
     for sub in ("departments", "tags"):
         (out_dir / sub).mkdir(parents=True, exist_ok=True)
+        for old_page in (out_dir / sub).glob("*.html"):  # pages for removed tags or departments
+            old_page.unlink()
     (out_dir / ".nojekyll").touch()  # serve files as-is on GitHub Pages
 
     def write(path: Path, text: str) -> Path:

@@ -75,9 +75,9 @@ feeds = [
 # in official.toml, so they can be filed by issuing department.
 
 # ---------------------------------------------------------------------------
-# General and world news. These widen what tags and channels can search (an
-# "Iran" tag needs world coverage, not just politics sections). Their articles
-# are classified like any other, so they also feed departments where relevant.
+# General and world news from the same UK outlets. These widen what tags and
+# channels can search beyond politics sections. Their articles are classified
+# like any other, so they also feed departments where relevant.
 # ---------------------------------------------------------------------------
 
 [[outlet]]

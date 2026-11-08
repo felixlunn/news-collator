@@ -13,6 +13,10 @@
 # a trailing * for any ending, ALL-CAPS acronyms and =terms are case-sensitive.
 # The media search ignores * and case, and skips terms under 3 characters.
 #
+# Media searches keep results from UK outlets only: any .uk domain, plus the
+# UK outlets on other domains listed in news_collator/tags.py (UK_OUTLETS).
+# Add more with `uk_domains` under [search].
+#
 # Readers can also create personal tags on the website's Channels page; those
 # live in their browser and search everything the site has collected.
 #
@@ -26,13 +30,14 @@ country = "UK"   # GDELT source-country code; UK = United Kingdom
 # GDELT, an open news index, refused most requests from GitHub's shared
 # servers in testing (November 2026). Remove either to stop using it.
 providers = ["google_news", "gdelt"]
+uk_domains = []  # extra UK outlet domains to accept, e.g. ["example-outlet.com"]
 
-[tags.vawg]
-name = "Violence against women and girls"
-terms = ["VAWG", "violence against women", "violence against women and girls", "domestic abuse",
-         "domestic violence", "femicide", "coercive control", "stalking", "drink spiking", "needle spiking",
-         "rape conviction*", "rape prosecution*"]
-
-[tags.iran]
-name = "Iran"
-terms = ["Iran", "Iranian", "Tehran", "IRGC", "Khamenei", "Revolutionary Guard*"]
+# No team tags are defined yet. To add one, copy this template, remove the
+# leading "# " from each line and fill it in. The slug after "tags." becomes the
+# page address (tags/<slug>.html).
+#
+# [tags.example-slug]
+# name = "Display name"
+# terms = ["first term", "second term", "acronym", "word*"]
+# exclude = ["term that should rule a story out"]   # optional
+# search = true                                     # optional; false skips the media search

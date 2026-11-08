@@ -94,15 +94,17 @@ the whole 72 hours even after they drop off an outlet's feed.
 
 ## Tags and channels
 
-**Team tags** (`config/tags.toml`) are topics that cut across departments, such
-as *Violence against women and girls* or *Iran*. Each tag is a name plus search
+**Team tags** (`config/tags.toml`) are topics that cut across departments. None
+are defined yet; the file contains a template. Each tag is a name plus search
 terms, using the same syntax as department keywords. On every rebuild a tag:
 
 1. collects matching articles from the outlet feeds, and
-2. runs a media search of UK outlets (Google News UK edition, falling back to
+2. runs a media search (Google News UK edition, falling back to
    [GDELT](https://www.gdeltproject.org/), an open index of world news), so it
-   also finds coverage from outlets we don't follow directly. Set
-   `search = false` on a tag to skip this.
+   also finds coverage from outlets we don't follow directly. Only results
+   from UK outlets are kept: any `.uk` domain plus known UK outlets on other
+   domains (add more with `uk_domains` in `tags.toml`). Set `search = false`
+   on a tag to skip the search.
 
 Each team tag gets a page (`tags/<slug>.html`) and a row in the homepage's Tags
 table. Run `python -m news_collator tags` to see the search each tag runs.

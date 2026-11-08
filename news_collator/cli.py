@@ -54,9 +54,9 @@ def cmd_fetch(args: argparse.Namespace, config: Config) -> int:
     errors |= official_errors
 
     # Team tags with a media search find coverage beyond our own feeds.
+    tags, settings = load_tags(args.config)
     found: list[Article] = []
     if not args.no_search:
-        tags, settings = load_tags(args.config)
         found, search_errors = search_tags(tags, settings, args.official_hours)
         errors |= search_errors
 
@@ -65,6 +65,8 @@ def cmd_fetch(args: argparse.Namespace, config: Config) -> int:
         new = store.save(articles + official + found)
         if args.prune_days:
             store.prune(args.prune_days)
+        # Drop search results belonging to tags that have been removed from the config.
+        store.purge_tags({t.slug for t in tags})
         # Re-sort everything already stored under the current rules, so keyword
         # changes apply across the whole window, not just to newly fetched items.
         stored = store.news_articles()

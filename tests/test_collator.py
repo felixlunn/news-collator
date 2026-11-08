@@ -149,10 +149,12 @@ class TestDigestAndStore(unittest.TestCase):
             channels = (out / "channels.html").read_text()
             self.assertIn('id="channels-app"', channels)
             self.assertIn('id="channel-data"', channels)
+            build_site(arts, CONFIG, 24, out, tags=())  # rebuild after the tag is removed
+            self.assertFalse((out / "tags" / "boats.html").exists())
             data = json.loads((out / "articles.json").read_text())
-            self.assertEqual({t["slug"] for t in data["tags"]}, {"boats"})
+            self.assertEqual(data["tags"], [])
             by_title = {i["t"]: i for i in data["items"]}
-            self.assertIn("boats", by_title["Home Secretary unveils plan to curb small boats crossings"]["g"])
+            self.assertEqual(by_title["Home Secretary unveils plan to curb small boats crossings"]["g"], [])
             self.assertIn("moj", by_title["Prisons near capacity as early release scheme extended"]["d"])
 
 
@@ -251,7 +253,7 @@ class TestTags(unittest.TestCase):
     def test_parse_gdelt(self):
         payload = json.loads((FIXTURES / "gdelt_artlist.json").read_text())
         found = parse_gdelt(payload, "vawg")
-        self.assertEqual(len(found), 2)  # untitled result dropped
+        self.assertEqual(len(found), 2)  # untitled and non-UK (nytimes.com) results dropped
         self.assertEqual(found[0].outlet, "The Times")          # known domain gets a display name
         self.assertEqual(found[1].outlet, "localpaper.co.uk")   # unknown domain shown as is
         self.assertEqual(found[0].kind, SEARCH)
@@ -263,9 +265,13 @@ class TestTags(unittest.TestCase):
                          '(VAWG OR "violence against women" OR "domestic abuse" OR "rape conviction") '
                          '-football when:3d')
         found = parse_google_news((FIXTURES / "google_news.xml").read_bytes(), "iran")
+        # CNN and Reuters are dropped: UK outlets only.
         self.assertEqual([(a.title, a.outlet) for a in found],
-                         [("Iran warns UK over sanctions on Revolutionary Guard", "BBC"),
-                          ("UK sanctions Iranian officials over crackdown", "The Times")])
+                         [("Iran warns UK over sanctions on Revolutionary Guard", "BBC News"),
+                          ("UK sanctions Iranian officials over crackdown", "The Times"),
+                          ("Ministers respond to Iran sanctions report", "manchestereveningnews.co.uk")])
+        extra = parse_google_news((FIXTURES / "google_news.xml").read_bytes(), "iran", uk_domains=("reuters.com",))
+        self.assertIn("Iran talks stall", [a.title for a in extra])  # configurable additions
         self.assertTrue(all(a.kind == SEARCH and a.tags == ["iran"] and not a.summary for a in found))
 
     def test_search_results_duplicating_feed_articles_are_dropped(self):
@@ -273,8 +279,26 @@ class TestTags(unittest.TestCase):
                        outlet="BBC News")
         found = parse_google_news((FIXTURES / "google_news.xml").read_bytes(), "iran")
         kept = drop_duplicate_search_results([feed] + found)
-        self.assertEqual([a.title for a in kept], [feed.title, "UK sanctions Iranian officials over crackdown"])
+        self.assertEqual([a.title for a in kept], [feed.title, "UK sanctions Iranian officials over crackdown",
+                                                   "Ministers respond to Iran sanctions report"])
         self.assertEqual(feed.tags, ["iran"])  # the feed article inherits the search tag
+
+    def test_uk_sources(self):
+        from news_collator.tags import is_uk_source
+        for ok in ("https://www.bbc.co.uk/news", "theguardian.com", "news.sky.com", "www.ft.com",
+                   "https://www.walesonline.co.uk/x", "gov.uk"):
+            self.assertTrue(is_uk_source(ok), ok)
+        for no in ("cnn.com", "https://www.nytimes.com/x", "reuters.com", "aljazeera.com", "", "theguardian.com.evil.io"):
+            self.assertFalse(is_uk_source(no), no)
+
+    def test_removed_tags_are_forgotten(self):
+        found = Article(url="https://www.thetimes.com/x", title="Example", outlet="The Times",
+                        published=datetime.now(timezone.utc), kind=SEARCH, tags=["old"])
+        self.assertEqual(TagMatcher(()).tags_for(found), [])  # stale tag link ignored
+        with tempfile.TemporaryDirectory() as tmp, Store(Path(tmp) / "t.db") as store:
+            store.save([found])
+            self.assertEqual(store.purge_tags(set()), 1)
+            self.assertEqual(store.recent(hours=1, filed_only=False), [])
 
     def test_store_keeps_search_tags_and_upgrades_to_news(self):
         url = "https://www.thetimes.com/uk/politics/article/vawg-strategy"

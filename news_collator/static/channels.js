@@ -331,7 +331,7 @@
         '<p class="page-sub">Choose any departments and tags. The channel shows everything that matches any of them.</p>' +
         '<form class="editor" novalidate>' +
         '<label class="field"><span>Channel name</span><input name="cname" maxlength="80" required value="' + esc(c.name) +
-        '" placeholder="For example: Justice and VAWG"></label>' +
+        '" placeholder="For example: Justice and policing"></label>' +
         '<fieldset><legend>Departments</legend><div class="checks">' + checks(DATA.departments, c.depts, "dept") + "</div></fieldset>" +
         (DATA.tags.length ? '<fieldset><legend>Tags</legend><div class="checks">' + checks(DATA.tags, c.tags, "tag") + "</div></fieldset>" : "") +
         '<fieldset><legend>Your own tags</legend>' +
@@ -410,8 +410,8 @@
 
   function intro() {
     root.innerHTML = '<h1 class="page-title">Your channels</h1>' +
-      '<p class="page-sub">A channel is your own feed: any mix of departments, team tags and tags you write yourself, ' +
-      "such as Ministry of Justice + Home Office + Violence against women and girls.</p>" +
+      '<p class="page-sub">A channel is your own feed: any mix of departments' + (DATA.tags.length ? ", team tags" : "") +
+      " and tags you write yourself, such as Ministry of Justice + Home Office + your own tag for a topic you follow.</p>" +
       '<p class="page-sub">Channels are saved in this browser. Share one with colleagues by sending its link.</p>' +
       '<p><a class="btn primary" href="#new">Create a channel</a></p>';
     root.onclick = null;

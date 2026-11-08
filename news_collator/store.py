@@ -149,6 +149,16 @@ class Store:
                         published=datetime.fromisoformat(p) if p else None)
                 for u, t, sm, o, p in rows]
 
+    def purge_tags(self, keep: set[str]) -> int:
+        """Forget search links for tags no longer in the config, and delete
+        search results left with no tag. Returns the number of articles removed."""
+        with self.conn:
+            marks = ",".join("?" * len(keep)) or "''"
+            self.conn.execute(f"DELETE FROM article_tags WHERE tag NOT IN ({marks})", list(keep))
+            return self.conn.execute(
+                "DELETE FROM articles WHERE kind = 'search' "
+                "AND id NOT IN (SELECT article_id FROM article_tags)").rowcount
+
     def prune(self, days: int) -> int:
         """Delete articles first seen more than `days` ago. Returns rows removed."""
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()

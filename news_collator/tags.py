@@ -1,6 +1,6 @@
 """Tags: named topic searches that cut across departments.
 
-A tag is a name plus search terms ("Iran": Iran, Tehran, IRGC). Tags work at
+A tag is a name plus search terms (e.g. "Sanctions": sanction*, asset freeze). Tags work at
 two levels:
 
 - Team tags (config/tags.toml) are built into the website. Each one
@@ -14,8 +14,8 @@ two levels:
   matched in their browser against everything the site has collected
   (articles.json). They use the same term syntax; see web.py.
 
-Search results are stored as articles of kind "search" with a link to the tag
-that found them. They appear on tag pages and in channels, never in
+Searches only keep results from UK outlets (see is_uk_source). Results are
+stored as articles of kind "search" with a link to the tag that found them. They appear on tag pages and in channels, never in
 department lists (they haven't been classified or vetted).
 """
 
@@ -26,10 +26,11 @@ import logging
 import time
 import tomllib
 import urllib.error
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from .classify import compile_term
 from .config import DEFAULT_CONFIG_DIR
@@ -46,8 +47,10 @@ GOOGLE_NEWS_RSS = "https://news.google.com/rss/search"
 GOOGLE_RETRY_WAIT = 20             # one retry after "503 Service Unavailable" / 429
 PROVIDERS = ("google_news", "gdelt")
 
-# Display names for common GDELT domains; anything else shows its domain.
-OUTLET_NAMES = {
+# UK outlets whose domains don't end in .uk, with display names. Search results
+# are kept only if their domain is listed here or ends in .uk (see is_uk_source);
+# add domains in tags.toml [search] uk_domains rather than editing this list.
+UK_OUTLETS = {
     "bbc.co.uk": "BBC News", "bbc.com": "BBC News", "theguardian.com": "The Guardian",
     "telegraph.co.uk": "The Telegraph", "independent.co.uk": "The Independent",
     "news.sky.com": "Sky News", "ft.com": "Financial Times", "thetimes.co.uk": "The Times",
@@ -56,8 +59,32 @@ OUTLET_NAMES = {
     "politicshome.com": "PoliticsHome", "standard.co.uk": "Evening Standard",
     "newstatesman.com": "New Statesman", "spectator.co.uk": "The Spectator",
     "itv.com": "ITV News", "channel4.com": "Channel 4 News", "economist.com": "The Economist",
-    "reuters.com": "Reuters", "lbc.co.uk": "LBC", "gbnews.com": "GB News",
+    "lbc.co.uk": "LBC", "gbnews.com": "GB News", "cityam.com": "City AM", "unherd.com": "UnHerd",
+    "heraldscotland.com": "The Herald", "scotsman.com": "The Scotsman", "irishnews.com": "The Irish News",
+    "thenational.scot": "The National", "politics.co.uk": "Politics.co.uk",
 }
+
+
+def _domain(url_or_domain: str) -> str:
+    host = urlparse(url_or_domain).netloc if "//" in url_or_domain else url_or_domain
+    return host.lower().split(":")[0].removeprefix("www.")
+
+
+def is_uk_source(url_or_domain: str, extra: tuple[str, ...] = ()) -> bool:
+    """True for UK outlets: a .uk domain, or a known UK outlet on another domain."""
+    d = _domain(url_or_domain)
+    if not d:
+        return False
+    known = set(UK_OUTLETS) | {_domain(x) for x in extra}
+    return d.endswith(".uk") or d == "uk" or any(d == k or d.endswith("." + k) for k in known)
+
+
+def outlet_name(url_or_domain: str) -> str:
+    d = _domain(url_or_domain)
+    for k, name in UK_OUTLETS.items():
+        if d == k or d.endswith("." + k):
+            return name
+    return d or "Web"
 
 
 @dataclass(frozen=True)
@@ -66,7 +93,7 @@ class Tag:
     name: str
     terms: tuple[str, ...]
     exclude: tuple[str, ...] = ()
-    search: bool = True  # also run a GDELT media search
+    search: bool = True  # also run a media search (UK outlets only)
 
 
 @dataclass(frozen=True)
@@ -74,6 +101,7 @@ class SearchSettings:
     enabled: bool = True
     country: str = "UK"  # GDELT source-country code (FIPS: UK = United Kingdom)
     providers: tuple[str, ...] = PROVIDERS  # tried in order until one answers
+    uk_domains: tuple[str, ...] = ()  # extra UK outlet domains to accept (beyond .uk and UK_OUTLETS)
 
 
 def load_tags(config_dir: Path | str = DEFAULT_CONFIG_DIR) -> tuple[tuple[Tag, ...], SearchSettings]:
@@ -96,7 +124,7 @@ def load_tags(config_dir: Path | str = DEFAULT_CONFIG_DIR) -> tuple[tuple[Tag, .
     if unknown:
         raise ValueError(f"tags.toml: unknown search providers {sorted(unknown)}; choose from {PROVIDERS}")
     return tuple(tags), SearchSettings(enabled=s.get("enabled", True), country=s.get("country", "UK"),
-                                       providers=providers)
+                                       providers=providers, uk_domains=tuple(s.get("uk_domains", [])))
 
 
 # ---------------------------------------------------------------------------
@@ -113,12 +141,14 @@ class TagMatcher:
     def __init__(self, tags: tuple[Tag, ...]):
         self._tags = [(t.slug, [compile_term(x) for x in t.terms], [compile_term(x) for x in t.exclude])
                       for t in tags]
+        self._known = {t.slug for t in tags}
 
     def tags_for(self, article: Article) -> list[str]:
         text = f"{article.title}\n{article.summary}"
         found = [slug for slug, terms, exclude in self._tags
                  if any(rx.search(text) for rx in terms) and not any(rx.search(text) for rx in exclude)]
-        return sorted(set(found) | set(article.tags))
+        # Search links are only honoured for tags still in the config.
+        return sorted(set(found) | (set(article.tags) & self._known))
 
 
 # ---------------------------------------------------------------------------
@@ -135,8 +165,9 @@ def gdelt_query(tag: Tag, country: str) -> str:
     return " ".join(part for part in (joined, negated, f"sourcecountry:{country}", "sourcelang:english") if part)
 
 
-def parse_gdelt(payload: dict, tag_slug: str) -> list[Article]:
-    """Turn a GDELT artlist response into search Articles tagged with `tag_slug`."""
+def parse_gdelt(payload: dict, tag_slug: str, uk_domains: tuple[str, ...] = ()) -> list[Article]:
+    """Turn a GDELT artlist response into search Articles tagged with `tag_slug`.
+    Results not from a UK outlet are dropped."""
     articles = []
     for item in payload.get("articles", []) or []:
         url, title = item.get("url"), (item.get("title") or "").strip()
@@ -149,8 +180,10 @@ def parse_gdelt(payload: dict, tag_slug: str) -> list[Article]:
                 published = datetime.strptime(seen, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
             except ValueError:
                 pass
-        domain = (item.get("domain") or "").lower().removeprefix("www.")
-        articles.append(Article(url=url, title=title, outlet=OUTLET_NAMES.get(domain, domain or "Web"),
+        domain = item.get("domain") or url
+        if not is_uk_source(domain, uk_domains):
+            continue
+        articles.append(Article(url=url, title=title, outlet=outlet_name(domain),
                                 published=published, kind=SEARCH, tags=[tag_slug]))
     return articles
 
@@ -173,13 +206,23 @@ def google_news_query(tag: Tag, hours: int) -> str:
     return " ".join([joined] + [f"-{t}" for t in exclude] + [f"when:{days}d"])
 
 
-def parse_google_news(xml_bytes: bytes, tag_slug: str) -> list[Article]:
-    """Google News RSS: titles end ' - Outlet'; links go via Google's redirect."""
+def parse_google_news(xml_bytes: bytes, tag_slug: str, uk_domains: tuple[str, ...] = ()) -> list[Article]:
+    """Google News RSS -> search Articles. Each item names its outlet in
+    <source url="...">; results not from a UK outlet are dropped. Titles end
+    ' - Outlet', which is removed. Links go via Google's redirect."""
+    sources = {}  # link -> outlet homepage URL
+    for item in ET.fromstring(xml_bytes).iter("item"):
+        src = item.find("source")
+        sources[(item.findtext("link") or "").strip()] = src.get("url", "") if src is not None else ""
     articles = []
     for a in parse_feed(xml_bytes, "Google News"):
-        title, sep, outlet = a.title.rpartition(" - ")
+        source_url = sources.get(a.url, "")
+        if not is_uk_source(source_url, uk_domains):
+            continue
+        title, sep, _ = a.title.rpartition(" - ")
         if sep and title:
-            a.title, a.outlet = title.strip(), outlet.strip()
+            a.title = title.strip()
+        a.outlet = outlet_name(source_url)
         a.summary = ""  # Google's summaries just repeat the headline and outlet
         a.kind, a.tags = SEARCH, [tag_slug]
         articles.append(a)
@@ -205,7 +248,7 @@ def _gdelt(tag: Tag, settings: SearchSettings, hours: int) -> list[Article]:
     except ValueError:
         # GDELT explains query problems in plain text rather than JSON.
         raise ValueError(f"GDELT replied: {body[:200].decode('utf-8', 'replace').strip()}") from None
-    return parse_gdelt(payload, tag.slug)
+    return parse_gdelt(payload, tag.slug, settings.uk_domains)
 
 
 def _google_news(tag: Tag, settings: SearchSettings, hours: int) -> list[Article]:
@@ -220,7 +263,7 @@ def _google_news(tag: Tag, settings: SearchSettings, hours: int) -> list[Article
         log.info("Google News busy for tag '%s' (%s); retrying in %ss", tag.slug, exc.code, GOOGLE_RETRY_WAIT)
         time.sleep(GOOGLE_RETRY_WAIT)
         body = download(url)
-    return parse_google_news(body, tag.slug)
+    return parse_google_news(body, tag.slug, settings.uk_domains)
 
 
 _PROVIDER_FUNCS = {"gdelt": _gdelt, "google_news": _google_news}
