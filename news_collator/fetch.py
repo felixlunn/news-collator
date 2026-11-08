@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import gzip
 import html
 import logging
 import re
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+import zlib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -118,12 +120,32 @@ def parse_feed(xml_bytes: bytes, outlet: str) -> list[Article]:
 # Network
 # ---------------------------------------------------------------------------
 
+def decompress(body: bytes) -> bytes:
+    """Undo gzip or deflate compression if present.
+
+    urllib doesn't decode compressed responses, and some outlets (e.g. the
+    Independent) compress even when the client never asked for it, so we
+    detect compression from the bytes themselves rather than trusting headers.
+    """
+    if body[:2] == b"\x1f\x8b":  # gzip magic number
+        return gzip.decompress(body)
+    if body[:1] == b"\x78":  # zlib/deflate header byte
+        try:
+            return zlib.decompress(body)
+        except zlib.error:
+            pass  # just happened to start with 'x'; leave untouched
+    return body
+
+
 def download(url: str) -> bytes:
-    """GET a URL and return the body. Raises urllib errors on failure."""
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
-                                               "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml"})
+    """GET a URL and return the (decompressed) body. Raises urllib errors on failure."""
+    req = urllib.request.Request(url, headers={
+        "User-Agent": USER_AGENT,
+        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml",
+        "Accept-Encoding": "gzip, deflate",
+    })
     with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:
-        return resp.read()
+        return decompress(resp.read())
 
 
 def fetch_feed(url: str, outlet: str) -> tuple[str, list[Article], str | None]:

@@ -8,7 +8,7 @@ from pathlib import Path
 from news_collator.classify import Classifier, compile_term
 from news_collator.config import load_config
 from news_collator.digest import build_site, group_stories, render_html, render_markdown
-from news_collator.fetch import parse_date, parse_feed, strip_html
+from news_collator.fetch import decompress, parse_date, parse_feed, strip_html
 from news_collator.models import Article, normalise_url
 from news_collator.store import Store
 
@@ -34,6 +34,14 @@ class TestParsing(unittest.TestCase):
                          datetime(2026, 11, 8, 5, 0, tzinfo=timezone.utc))
         self.assertEqual(parse_date("Sun, 08 Nov 2026 09:00:00 GMT").hour, 9)
         self.assertIsNone(parse_date("not a date"))
+
+    def test_compressed_feeds(self):
+        import gzip, zlib
+        raw = (FIXTURES / "sample_rss.xml").read_bytes()
+        self.assertEqual(decompress(gzip.compress(raw)), raw)
+        self.assertEqual(decompress(zlib.compress(raw)), raw)
+        self.assertEqual(decompress(raw), raw)  # uncompressed passes through
+        self.assertEqual(len(parse_feed(decompress(gzip.compress(raw)), "X")), 3)
 
     def test_strip_html(self):
         self.assertEqual(strip_html("<p>Hello&nbsp;<b>world</b></p>"), "Hello world")
