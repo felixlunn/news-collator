@@ -53,6 +53,17 @@ jobs:
       - name: Build website
         run: python -m news_collator site --hours 72 --out site
 
+      # Classification report for tuning keywords: download it from the run's
+      # summary page under "Artifacts". Kept for 7 days.
+      - name: Write classification audit
+        run: python -m news_collator audit --out audit/audit.csv
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: classification-audit
+          path: audit/audit.csv
+          retention-days: 7
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

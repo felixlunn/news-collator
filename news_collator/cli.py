@@ -6,14 +6,17 @@
     python -m news_collator site                   # build the static website
     python -m news_collator explain "headline …"   # debug why text maps where it does
     python -m news_collator check-feeds            # test every feed URL
+    python -m news_collator audit                  # CSV of every article's classification
     python -m news_collator departments            # list department slugs
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import logging
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from .classify import DEFAULT_THRESHOLD, Classifier
@@ -117,6 +120,46 @@ def cmd_check_feeds(args: argparse.Namespace, config: Config) -> int:
     return 1 if failures else 0
 
 
+def cmd_audit(args: argparse.Namespace, config: Config) -> int:
+    """Write a CSV of every fetched news article with its classification.
+
+    For tuning keywords: sort by `assigned` to review what each department
+    received, or filter for blanks to find relevant stories that were missed.
+    Nothing is stored in the database.
+    """
+    clf = Classifier(config.departments, args.threshold)
+    jobs = [(url, o.name) for o in config.outlets if o.enabled for url in o.feeds]
+    seen: set[str] = set()
+    rows = []
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for feed, items, err in pool.map(lambda job: fetch_feed(*job), jobs):
+            if err:
+                print(f"FAIL {feed}: {err}", file=sys.stderr)
+            for art in items:
+                if art.id in seen:
+                    continue
+                seen.add(art.id)
+                matches = clf.explain(art)
+                assigned = [m.slug for m in matches if m.score >= args.threshold and not m.excluded]
+                rows.append({
+                    "feed": feed, "outlet": art.outlet,
+                    "published": art.published.isoformat() if art.published else "",
+                    "title": art.title, "summary": art.summary[:400],
+                    "assigned": " ".join(assigned),
+                    "scores": "; ".join(f"{m.slug}={m.score}{' EXCLUDED' if m.excluded else ''} "
+                                        f"[{', '.join(m.terms)}]" for m in matches[:4]),
+                })
+
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    with open(args.out, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=list(rows[0]) if rows else ["title"])
+        writer.writeheader()
+        writer.writerows(rows)
+    matched = sum(1 for r in rows if r["assigned"])
+    print(f"Wrote {args.out}: {len(rows)} articles, {matched} assigned to a department.")
+    return 0
+
+
 def cmd_departments(args: argparse.Namespace, config: Config) -> int:
     for d in config.departments:
         print(f"{d.slug:15} {d.name}")
@@ -163,6 +206,9 @@ def build_parser() -> argparse.ArgumentParser:
     explain.add_argument("title")
     explain.add_argument("--summary", default="")
 
+    audit = sub.add_parser("audit", help="write a CSV of every article and how it was classified")
+    audit.add_argument("--out", type=Path, default=Path("output/audit.csv"))
+
     sub.add_parser("check-feeds", help="test every configured feed")
     sub.add_parser("departments", help="list department slugs")
     return p
@@ -170,7 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 COMMANDS = {
     "fetch": cmd_fetch, "digest": cmd_digest, "site": cmd_site, "run": cmd_run, "explain": cmd_explain,
-    "check-feeds": cmd_check_feeds, "departments": cmd_departments,
+    "check-feeds": cmd_check_feeds, "audit": cmd_audit, "departments": cmd_departments,
 }
 
 
