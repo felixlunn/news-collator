@@ -48,21 +48,10 @@ GOOGLE_RETRY_WAIT = 20             # one retry after "503 Service Unavailable" /
 PROVIDERS = ("google_news", "gdelt")
 
 # UK outlets whose domains don't end in .uk, with display names. Search results
-# are kept only if their domain is listed here or ends in .uk (see is_uk_source);
-# add domains in tags.toml [search] uk_domains rather than editing this list.
-UK_OUTLETS = {
-    "bbc.co.uk": "BBC News", "bbc.com": "BBC News", "theguardian.com": "The Guardian",
-    "telegraph.co.uk": "The Telegraph", "independent.co.uk": "The Independent",
-    "news.sky.com": "Sky News", "ft.com": "Financial Times", "thetimes.co.uk": "The Times",
-    "thetimes.com": "The Times", "dailymail.co.uk": "Daily Mail", "mirror.co.uk": "Daily Mirror",
-    "express.co.uk": "Daily Express", "thesun.co.uk": "The Sun", "inews.co.uk": "The i",
-    "politicshome.com": "PoliticsHome", "standard.co.uk": "Evening Standard",
-    "newstatesman.com": "New Statesman", "spectator.co.uk": "The Spectator",
-    "itv.com": "ITV News", "channel4.com": "Channel 4 News", "economist.com": "The Economist",
-    "lbc.co.uk": "LBC", "gbnews.com": "GB News", "cityam.com": "City AM", "unherd.com": "UnHerd",
-    "heraldscotland.com": "The Herald", "scotsman.com": "The Scotsman", "irishnews.com": "The Irish News",
-    "thenational.scot": "The National", "politics.co.uk": "Politics.co.uk",
-}
+# are kept only if their domain is listed here or ends in .uk (see is_uk_source).
+# The list lives in config/uk_outlets.json, shared with the search Worker
+# (worker/src/index.js); add domains in tags.toml [search] uk_domains, or there.
+UK_OUTLETS: dict[str, str] = json.loads((DEFAULT_CONFIG_DIR / "uk_outlets.json").read_text(encoding="utf-8"))
 
 
 def _domain(url_or_domain: str) -> str:

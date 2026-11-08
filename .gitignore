@@ -9,3 +9,8 @@ __pycache__/
 .venv/
 *.egg-info/
 audit/
+
+# Worker build output
+worker/dist/
+worker/node_modules/
+worker/.wrangler/

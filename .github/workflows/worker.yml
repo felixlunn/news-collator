@@ -1,0 +1,64 @@
+# Tests, bundles and deploys the search Worker (worker/) to Cloudflare.
+#
+# Deployment needs two repository secrets (Settings -> Secrets and variables
+# -> Actions): CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID. Until both exist
+# the workflow still tests and bundles the Worker, then stops before deploying.
+# See worker/README.md for setup.
+name: Deploy search worker
+
+on:
+  push:
+    branches: [main]
+    paths: ["worker/**", "config/uk_outlets.json", ".github/workflows/worker.yml"]
+  workflow_dispatch:
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test
+        working-directory: worker
+        run: npm test
+
+      # Builds the deployable bundle without credentials, so problems show up
+      # even before Cloudflare is set up.
+      - name: Bundle (dry run)
+        working-directory: worker
+        run: npx --yes wrangler@4 deploy --dry-run --outdir dist
+
+      - name: Check for Cloudflare secrets
+        id: secrets
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "$TOKEN" ] && [ -n "$ACCOUNT" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Cloudflare secrets not set yet, so the Worker was tested and bundled but not deployed. See worker/README.md."
+          fi
+
+      - name: Deploy to Cloudflare
+        id: deploy
+        if: steps.secrets.outputs.ready == 'true'
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+
+      - name: Show the Worker's address
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          echo "Search Worker deployed: ${URL:-see the Deploy step's log}"
+          echo "### Search Worker deployed: ${URL:-see the Deploy step's log}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Put this address in config/tags.toml as live_search_url (under [search])." >> "$GITHUB_STEP_SUMMARY"

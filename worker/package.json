@@ -1,0 +1,9 @@
+{
+  "name": "despatch-search",
+  "private": true,
+  "type": "module",
+  "description": "Live UK news search for personal tags on the Despatch Channels page",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

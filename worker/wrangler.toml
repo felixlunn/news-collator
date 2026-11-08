@@ -1,0 +1,9 @@
+# Cloudflare Worker that lets personal tags on the Channels page search UK
+# outlets live. Deployed by .github/workflows/worker.yml; see worker/README.md.
+name = "despatch-search"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+# Pages allowed to call this Worker (comma-separated origins, no trailing slash).
+ALLOWED_ORIGINS = "https://felixlunn.github.io"
