@@ -1,0 +1,81 @@
+# ---------------------------------------------------------------------------
+# Where a story happens.
+#
+# Rule: if a headline names a place outside the UK, and neither the headline
+# nor the summary places the story in the UK, the story is filed under the
+# `department` below (the Foreign Office) instead of any domestic department.
+# Stories that name foreign places but are anchored in the UK ("UK and France
+# sign returns deal", "London summit on Ukraine") are classified as normal.
+#
+# Only headlines are checked for foreign places, so a UK story isn't moved
+# just because its summary mentions another country.
+#
+# Nationality words (British, Briton) are deliberately not UK anchors: "Briton
+# killed in Krakow shooting" happens abroad and belongs with the Foreign Office.
+# Every domestic department's `strong` terms (e.g. "Home Office", "Health
+# Secretary") also count as UK anchors automatically.
+# Words that are also names or ordinary English are case-sensitive (=Turkey,
+# =Polish, =Guinea) or left out (Jordan, Chad, European). Continents match
+# only as places ("Asia", not "Asian"), since "Asian" and "African" often
+# describe people in the UK.
+# Term syntax as in departments.toml.
+# ---------------------------------------------------------------------------
+
+department = "fcdo"
+
+uk = [
+  "UK", "U.K.", "United Kingdom", "Britain", "Great Britain", "England", "Scotland", "Wales",
+  "Northern Ireland", "Scottish", "Welsh", "English", "nationwide", "across the country",
+  "London", "Westminster", "Whitehall", "Downing Street", "Commons", "House of Lords", "Holyrood",
+  "Senedd", "Stormont", "united Ireland", "border poll",
+  "Birmingham", "Manchester", "Liverpool", "Leeds", "Sheffield", "Bristol", "Newcastle", "Nottingham",
+  "Leicester", "Coventry", "Bradford", "Hull", "Stoke", "Southampton", "Portsmouth", "Plymouth", "Brighton",
+  "Oxford", "Cambridge", "Norwich", "Exeter", "York", "Derby", "Reading", "Milton Keynes", "Luton",
+  "Sunderland", "Middlesbrough", "Blackpool", "Preston", "Bolton", "Wigan", "Swindon", "Peterborough",
+  "Ipswich", "Canterbury", "Dover", "Kent", "Essex", "Surrey", "Sussex", "Yorkshire", "Lancashire",
+  "Cornwall", "Devon", "Cumbria", "Teesside", "Merseyside", "Midlands", "the North East", "the North West",
+  "Glasgow", "Edinburgh", "Aberdeen", "Dundee", "Inverness", "Highlands", "Cardiff", "Swansea", "Newport",
+  "Wrexham", "Belfast", "Derry", "Londonderry",
+  "NHS", "Ofsted", "Ofgem", "Ofwat", "Ofcom", "DVLA", "HMRC", "Met Police", "Scotland Yard",
+  "Home Office", "Treasury", "Ministry of Justice", "Ministry of Defence", "Department for",
+  "Bank of England", "Network Rail", "Thames Water", "councils", "council tax", "Palestine Action",
+]
+
+foreign = [
+  # Continents, regions and international bodies
+  "Europe", "EU", "Brussels", "Africa", "Asia", "Southeast Asia", "East Asia", "South Asia", "African Union", "Middle East", "Gulf states", "Latin America*",
+  "South America*", "Caribbean", "Pacific", "Balkans", "Scandinavia*", "Nordic", "Arctic", "Antarctic*",
+  "Sahel", "Kremlin", "Pentagon", "White House", "Capitol Hill", "UN Security Council", "Nato summit",
+  # Countries and demonyms
+  "Afghanistan", "Afghan*", "Albania*", "Algeria*", "Angola*", "Argentina", "Argentin*", "Armenia*",
+  "Australia*", "Austria*", "Azerbaijan*", "Bahrain*", "Bangladesh*", "Belarus*", "Belgium", "Belgian",
+  "Bolivia*", "Bosnia*", "Botswana", "Brazil*", "Bulgaria*", "Burkina Faso", "Burundi", "Cambodia*",
+  "Cameroon*", "Canada", "Canadian*", "Chadian*", "Chile", "Chilean*", "China", "Chinese", "Colombia*",
+  "Congo*", "Costa Rica*", "Croatia*", "Cuba", "Cuban*", "Cyprus", "Cypriot*", "Czech*", "Denmark",
+  "Danish", "Dominican Republic", "Ecuador*", "Egypt*", "El Salvador", "Eritrea*", "Estonia*", "Ethiopia*",
+  "Fiji*", "Finland", "Finnish", "France", "French", "Gabon", "Gambia*", "Georgia*", "Germany", "German*",
+  "Ghana*", "Greece", "Greek*", "Guatemala*", "=Guinea", "Guinea-Bissau", "Haiti*", "Honduras", "Hong Kong", "Hungary",
+  "Hungarian*", "Iceland*", "India", "Indian", "Indonesia*", "Iran", "Iranian*", "Iraq", "Iraqi*",
+  "Republic of Ireland", "Dublin", "Taoiseach", "Israel", "Israeli*", "Italy", "Italian*", "Ivory Coast",
+  "Jamaica*", "Japan", "Japanese", "Jordanian*", "Amman", "Kazakhstan*", "Kenya*", "Kosovo*", "Kuwait*", "Kyrgyz*",
+  "Laos", "Latvia*", "Lebanon", "Lebanese", "Liberia*", "Libya*", "Lithuania*", "Luxembourg", "Madagascar",
+  "Malawi*", "Malaysia*", "Maldives", "Mali", "Malian*", "Malta", "Maltese", "Mauritania*", "Mauritius",
+  "Mexico", "Mexican*", "Moldova*", "Mongolia*", "Montenegr*", "Morocc*", "Mozambique", "Myanmar", "Burma",
+  "Namibia*", "Nepal*", "Netherlands", "Dutch", "New Zealand", "Nicaragua*", "Niger", "Nigeria*",
+  "North Korea*", "North Macedonia*", "Norway", "Norwegian*", "Oman*", "Pakistan*", "Palestin*", "Gaza",
+  "West Bank", "Panama*", "Papua New Guinea", "Paraguay*", "Peru", "Peruvian*", "Philippine*", "Poland",
+  "=Polish", "Portugal", "Portuguese", "Qatar*", "Romania*", "Russia", "Russian*", "Rwanda*", "Saudi*",
+  "Senegal*", "Serbia*", "Sierra Leone*", "Singapore*", "Slovakia*", "Slovenia*", "Somalia*",
+  "South Africa*", "South Korea*", "South Sudan*", "Spain", "Spanish", "Sri Lanka*", "Sudan*", "Sweden",
+  "Swedish", "Switzerland", "Swiss", "Syria*", "Taiwan*", "Tajik*", "Tanzania*", "Thailand", "Thai",
+  "Tunisia*", "=Turkey", "Turkish", "Türkiye", "Turkmen*", "Uganda*", "Ukraine", "Ukrainian*", "UAE",
+  "United Arab Emirates", "Emirati", "Uruguay*", "US", "U.S.", "USA", "United States", "America",
+  "American*", "Uzbek*", "Venezuela*", "Vietnam*", "Yemen*", "Zambia*", "Zimbabwe*",
+  # Major foreign cities often used without their country
+  "Paris", "Berlin", "Madrid", "Rome", "Moscow", "Kyiv", "Kiev", "Beijing", "Shanghai", "Tokyo", "Delhi",
+  "Mumbai", "Washington DC", "New York", "California", "Texas", "Florida", "Los Angeles", "Chicago",
+  "Tehran", "Jerusalem", "Tel Aviv", "Beirut", "Damascus", "Baghdad", "Kabul", "Cairo", "Istanbul",
+  "Ankara", "Riyadh", "Dubai", "Doha", "Sydney", "Melbourne", "Toronto", "Ottawa", "Mexico City",
+  "Krakow", "Warsaw", "Prague", "Vienna", "Budapest", "Amsterdam", "Geneva", "The Hague", "Strasbourg",
+  "Davos", "Seoul", "Pyongyang", "Taipei", "Bangkok", "Lagos", "Nairobi", "Johannesburg",
+]

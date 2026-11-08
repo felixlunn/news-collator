@@ -338,6 +338,18 @@ LIVE_CASES = [
     ("Second Labour MP suspended over Covid loan repayments", {"westminster"}, set()),
     ("MPs urge online retailers to stop selling AI toys over child harm fears", {"dbist"}, set()),
     ("Former Miners To Receive Pension Fund Within Weeks, Says Chancellor", {"treasury", "dwp"}, set()),
+    # Set abroad -> Foreign Office only
+    ("US attorneys are freeing children from Trump's 'deportation machine' with a new strategy", {"fcdo"}, {"home-office"}),
+    ("Mexico moves to combat pollution following Guardian investigations", {"fcdo"}, {"defra"}),
+    ("Briton among six killed in 'far-right' shooting in Krakow", {"fcdo"}, {"home-office"}),
+    ("Serbia's Parliament to meet on Nov. 17 after student-led movement won election", {"fcdo"}, {"westminster"}),
+    ("Why a US-funded vaccine trial on babies was cancelled in Guinea-Bissau", {"fcdo"}, {"dhsc"}),
+    # ...but not when the story is anchored in the UK, or the foreign word describes people here
+    ("UK and France sign new returns deal for small boats arrivals", {"home-office"}, set()),
+    ("Home Office signs returns agreement with Albania", {"home-office"}, set()),
+    ("Palestine Action ban undermined confidence in anti-terror laws, Supreme Court told", {"home-office"}, {"fcdo"}),
+    ("Ambika Mod says the 'glass ceiling is always getting higher' for South Asian actors", set(), {"fcdo", "mod"}),
+    ("Christmas turkey prices rise as farmers face bird flu", {"defra"}, {"fcdo"}),
     # Known false positives that must stay out
     ("Ambika Mod says the 'glass ceiling is always getting higher' for South Asian actors", set(), {"mod"}),
     ("The Indian workers filming their work to train AI", set(), {"dft"}),

@@ -64,6 +64,10 @@ Everything editable lives in `config/`:
   obituaries. Terms are whole-word and case-insensitive; `prison*` matches any
   ending; ALL-CAPS acronyms and terms starting `=` (e.g. `=Budget`) are
   case-sensitive.
+- **`places.toml`** — UK and foreign place names. A story whose headline names
+  a place outside the UK, with nothing in the headline or summary placing it in
+  the UK, is filed under the Foreign Office only (e.g. a US court ruling on
+  deportations, or a shooting in Krakow involving a Briton).
 - **`tags.toml`** — team tags; see *Tags and channels* below.
 - **`people.toml`** — ministers' names per department, scored as keywords.
   **Update it at every reshuffle**; a warning is logged once it is six months old.

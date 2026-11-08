@@ -24,6 +24,10 @@ under Health because the summary mentions a hospital.
 
 Headlines matching a global exclude (cartoons, podcasts, quizzes…) are never
 filed. A department's own exclude terms veto that department only.
+
+Stories set abroad (config/places.toml): if the headline names a place outside
+the UK and nothing in the headline or summary places the story in the UK, it
+is filed under the Foreign Office only, whatever else it matched.
 """
 
 from __future__ import annotations
@@ -31,7 +35,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from .config import Config, Department
+from .config import Config, Department, Places
 from .models import Article
 
 STRONG_WEIGHT = 4
@@ -82,9 +86,14 @@ class Classifier:
     """Compiles term lists once, then scores many articles quickly."""
 
     def __init__(self, departments: tuple[Department, ...], threshold: int = DEFAULT_THRESHOLD,
-                 global_exclude: tuple[str, ...] = ()):
+                 global_exclude: tuple[str, ...] = (), places: Places = Places()):
         self.threshold = threshold
         self._global_exclude = [compile_term(t) for t in global_exclude]
+        # "Happened abroad" rule. Domestic departments' strong terms are UK anchors too.
+        self._abroad_dept = places.department
+        self._foreign = [compile_term(t) for t in places.foreign] if places.department else []
+        domestic_strong = [t for d in departments if d.slug != places.department for t in d.strong]
+        self._uk = [compile_term(t) for t in (*places.uk, *domestic_strong)]
 
         def compiled(terms):
             return [(t, compile_term(t)) for t in terms]
@@ -102,11 +111,17 @@ class Classifier:
 
     @classmethod
     def from_config(cls, config: Config, threshold: int = DEFAULT_THRESHOLD) -> "Classifier":
-        return cls(config.departments, threshold, config.global_exclude)
+        return cls(config.departments, threshold, config.global_exclude, config.places)
 
     def globally_excluded(self, article: Article) -> bool:
         """True for headlines that are never policy news (cartoons, podcasts…)."""
         return any(rx.search(article.title) for rx in self._global_exclude)
+
+    def abroad(self, article: Article) -> bool:
+        """True if the headline names a foreign place and nothing places the story in the UK."""
+        if not self._foreign or not any(rx.search(article.title) for rx in self._foreign):
+            return False
+        return not any(rx.search(article.title) or rx.search(article.summary) for rx in self._uk)
 
     def explain(self, article: Article) -> list[Match]:
         """Score `article` against every department; matches with score > 0, best first."""
@@ -133,6 +148,9 @@ class Classifier:
         """Return {department_slug: score} for the departments the article is filed under."""
         if self.globally_excluded(article):
             return {}
+        if self.abroad(article):
+            own = next((m.score for m in self.explain(article) if m.slug == self._abroad_dept), 0)
+            return {self._abroad_dept: max(own, self.threshold)}
         eligible = [m for m in self.explain(article)
                     if m.score >= self.threshold and not m.excluded and not m.context_only]
         if not eligible:

@@ -5,6 +5,7 @@ config/
   departments.toml   departments and the term lists used to classify news
   people.toml        ministers' names per department (optional)
   official.toml      GOV.UK / Parliament mapping per department (optional)
+  places.toml        UK and foreign place names for the "happened abroad" rule (optional)
 """
 
 from __future__ import annotations
@@ -59,12 +60,21 @@ class OfficialSources:
 
 
 @dataclass(frozen=True)
+class Places:
+    """places.toml: stories set abroad go to `department` (see classify.py)."""
+    department: str = ""
+    uk: tuple[str, ...] = ()
+    foreign: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Config:
     outlets: tuple[Outlet, ...]
     departments: tuple[Department, ...] = field(default_factory=tuple)
     official: OfficialSources = OfficialSources()
     # Headline terms that mark content as never policy news (cartoons, quizzes…).
     global_exclude: tuple[str, ...] = ()
+    places: Places = Places()
 
     def department(self, slug: str) -> Department:
         """Look up a department by slug; the error lists valid slugs."""
@@ -128,6 +138,12 @@ def load_config(config_dir: Path | str = DEFAULT_CONFIG_DIR) -> Config:
         )
         for slug, d in raw_depts.items()
     )
+    raw_places = _load_optional(config_dir / "places.toml")
+    places = Places(department=raw_places.get("department", ""), uk=tuple(raw_places.get("uk", [])),
+                    foreign=tuple(raw_places.get("foreign", [])))
+    if places.department and places.department not in raw_depts:
+        raise ValueError(f"places.toml: department '{places.department}' is not in departments.toml")
+
     sources = raw_official.get("sources", {})
     official = OfficialSources(govuk=sources.get("govuk", False),
                                written_statements=sources.get("written_statements", False))
@@ -137,4 +153,4 @@ def load_config(config_dir: Path | str = DEFAULT_CONFIG_DIR) -> Config:
     if not departments:
         raise ValueError(f"No departments defined in {config_dir / 'departments.toml'}")
     return Config(outlets=outlets, departments=departments, official=official,
-                  global_exclude=tuple(raw.get("global", {}).get("exclude", [])))
+                  global_exclude=tuple(raw.get("global", {}).get("exclude", [])), places=places)

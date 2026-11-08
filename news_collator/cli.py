@@ -121,6 +121,9 @@ def cmd_explain(args: argparse.Namespace, config: Config) -> int:
     if clf.globally_excluded(art):
         print("Headline matches a global exclude term (e.g. cartoon, podcast); never filed.")
         return 0
+    if clf.abroad(art):
+        print("Set abroad: names a foreign place and nothing places it in the UK, so it is filed under "
+              f"{config.places.department} only.")
     matches = clf.explain(art)
     filed = clf.classify(art)
     if not matches:
