@@ -156,6 +156,16 @@ def fetch_written_statements(departments: tuple[Department, ...], hours: int
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
             log.warning("%s: %s", url, exc)
             return _dedupe_bicameral(articles), {url: str(exc)}
+        if page == 0:
+            # Diagnostic: confirms the API shape and how many statements exist,
+            # so "0 statements" can be told apart from a parsing problem.
+            keys = sorted(payload) if isinstance(payload, dict) else type(payload).__name__
+            log.info("Written statements API: totalResults=%s, keys=%s",
+                     payload.get("totalResults") if isinstance(payload, dict) else "?", keys)
+            if isinstance(payload, dict) and payload.get("results"):
+                first = payload["results"][0]
+                log.info("Written statements API: first result keys=%s",
+                         sorted(first.get("value", first)) if isinstance(first, dict) else first)
         batch, missing = parse_statements(payload, lookup)
         articles += batch
         unmatched |= missing
