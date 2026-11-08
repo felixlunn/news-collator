@@ -141,6 +141,17 @@ feeds = [
   "https://www.belfasttelegraph.co.uk/rss",
 ]
 
+# The Times has no public feed, so its articles come via Google News searches
+# restricted to thetimes.com. Headlines only (no summaries); links go through
+# Google's redirect. For personal use.
+[[outlet]]
+name = "The Times"
+enabled = true
+feeds = [
+  "https://news.google.com/rss/search?q=site:thetimes.com/uk/politics+when:2d&hl=en-GB&gl=GB&ceid=GB:en",
+  "https://news.google.com/rss/search?q=site:thetimes.com+when:1d&hl=en-GB&gl=GB&ceid=GB:en",
+]
+
 # ITV News and The Spectator publish no RSS feeds (every candidate address
 # returned 404 in November 2026). Tag and live searches can still find them.
 

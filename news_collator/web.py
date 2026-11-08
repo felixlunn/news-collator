@@ -509,6 +509,7 @@ def _page(title: str, mast: str, content: str, extra_head: str = "", extra_scrip
     return f"""<!doctype html>
 <html lang="en-GB"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>{esc(title)}</title>{_FONTS}<style>{_CSS}</style>{extra_head}</head>
 <body id="top"><a class="skip" href="#main">Skip to content</a>
 {mast}{content}
@@ -711,6 +712,8 @@ def build_site(articles: list[Article], config: Config, hours: int, out_dir: Pat
         for old_page in (out_dir / sub).glob("*.html"):  # pages for removed tags or departments
             old_page.unlink()
     (out_dir / ".nojekyll").touch()  # serve files as-is on GitHub Pages
+    # Personal-use site: ask search engines not to crawl or index it.
+    (out_dir / "robots.txt").write_text("User-agent: *\nDisallow: /\n", encoding="utf-8")
 
     def write(path: Path, text: str) -> Path:
         path.write_text(text, encoding="utf-8")

@@ -50,6 +50,14 @@ class TestParsing(unittest.TestCase):
         self.assertEqual(decompress(raw), raw)  # uncompressed passes through
         self.assertEqual(len(parse_feed(decompress(gzip.compress(raw)), "X")), 3)
 
+    def test_google_news_outlet_feed_is_tidied(self):
+        from news_collator.fetch import tidy_google_news
+        items = parse_feed((FIXTURES / "google_news.xml").read_bytes(), "The Times")
+        tidy_google_news(items)
+        self.assertEqual(items[1].title, "UK sanctions Iranian officials over crackdown")
+        self.assertEqual(items[0].summary, "")
+        self.assertEqual(items[1].outlet, "The Times")
+
     def test_stale_feed_warning(self):
         arts = load_fixture_articles()  # dated 8 November 2026
         self.assertIsNone(stale_warning(arts, now=datetime(2026, 11, 9, tzinfo=timezone.utc)))
@@ -133,6 +141,8 @@ class TestDigestAndStore(unittest.TestCase):
             # index, channels, articles.json, one page per department and per tag
             self.assertEqual(len(pages), 3 + len(CONFIG.departments) + len(tags))
             self.assertTrue((out / ".nojekyll").exists())
+            self.assertIn("Disallow: /", (out / "robots.txt").read_text())
+            self.assertIn('content="noindex, nofollow"', (out / "index.html").read_text())
             index = (out / "index.html").read_text()
             self.assertIn('href="departments/moj.html"', index)
             self.assertIn('href="tags/boats.html"', index)

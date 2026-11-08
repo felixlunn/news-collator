@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
+from urllib.parse import urlsplit
 
 from .config import Outlet
 from .models import Article
@@ -152,6 +153,17 @@ def download(url: str, accept: str = FEED_ACCEPT) -> bytes:
         return decompress(resp.read())
 
 
+def tidy_google_news(articles: list[Article]) -> None:
+    """Google News feeds (used for outlets without feeds of their own, e.g. a
+    site: search for The Times) end each headline with " - Outlet" and repeat
+    the headline as the summary. Strip both, in place."""
+    for a in articles:
+        title, sep, _ = a.title.rpartition(" - ")
+        if sep and title:
+            a.title = title.strip()
+        a.summary = ""
+
+
 def stale_warning(articles: list[Article], now: datetime | None = None) -> str | None:
     """A message if a feed's newest dated item is older than STALE_AFTER_DAYS.
 
@@ -176,6 +188,8 @@ def fetch_feed(url: str, outlet: str) -> tuple[str, list[Article], str | None]:
     """
     try:
         items = parse_feed(download(url), outlet)
+        if urlsplit(url).netloc == "news.google.com":
+            tidy_google_news(items)
         return url, items, stale_warning(items)
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         return url, [], f"network error: {exc}"
