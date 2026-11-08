@@ -17,7 +17,10 @@
  *    Python side's tags.is_uk_source.
  */
 
-import UK_OUTLETS from "../../config/uk_outlets.json" with { type: "json" };
+import OUTLET_DATA from "../../config/uk_outlets.json" with { type: "json" };
+
+const UK_OUTLETS = OUTLET_DATA.outlets;
+const EXCLUDED = OUTLET_DATA.excluded || [];  // never returned, even on .uk domains
 
 const GOOGLE_NEWS_RSS = "https://news.google.com/rss/search";
 const MAX_TERMS = 10;
@@ -59,7 +62,7 @@ function domainOf(urlOrDomain) {
 /** A .uk domain, or a known UK outlet on another domain. */
 export function isUkSource(urlOrDomain) {
   const d = domainOf(urlOrDomain);
-  if (!d) return false;
+  if (!d || EXCLUDED.some((x) => d === x || d.endsWith("." + x))) return false;
   if (d.endsWith(".uk")) return true;
   return Object.keys(UK_OUTLETS).some((k) => d === k || d.endsWith("." + k));
 }

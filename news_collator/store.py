@@ -159,6 +159,14 @@ class Store:
                 "DELETE FROM articles WHERE kind = 'search' "
                 "AND id NOT IN (SELECT article_id FROM article_tags)").rowcount
 
+    def purge_outlets(self, keep: set[str]) -> int:
+        """Delete stored news articles from outlets that are no longer enabled
+        (search results and official items are left alone). Returns rows removed."""
+        with self.conn:
+            marks = ",".join("?" * len(keep)) or "''"
+            return self.conn.execute(f"DELETE FROM articles WHERE kind = 'news' AND outlet NOT IN ({marks})",
+                                     list(keep)).rowcount
+
     def prune(self, days: int) -> int:
         """Delete articles first seen more than `days` ago. Returns rows removed."""
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()

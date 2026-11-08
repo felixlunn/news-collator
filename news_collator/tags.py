@@ -51,7 +51,11 @@ PROVIDERS = ("google_news", "gdelt")
 # are kept only if their domain is listed here or ends in .uk (see is_uk_source).
 # The list lives in config/uk_outlets.json, shared with the search Worker
 # (worker/src/index.js); add domains in tags.toml [search] uk_domains, or there.
-UK_OUTLETS: dict[str, str] = json.loads((DEFAULT_CONFIG_DIR / "uk_outlets.json").read_text(encoding="utf-8"))
+_OUTLET_DATA = json.loads((DEFAULT_CONFIG_DIR / "uk_outlets.json").read_text(encoding="utf-8"))
+UK_OUTLETS: dict[str, str] = _OUTLET_DATA["outlets"]
+# Outlets never accepted from searches, even on a .uk domain (e.g. The Times,
+# which offers no feed; see config/outlets.toml).
+EXCLUDED_OUTLETS: tuple[str, ...] = tuple(_OUTLET_DATA.get("excluded", []))
 
 
 def _domain(url_or_domain: str) -> str:
@@ -60,9 +64,10 @@ def _domain(url_or_domain: str) -> str:
 
 
 def is_uk_source(url_or_domain: str, extra: tuple[str, ...] = ()) -> bool:
-    """True for UK outlets: a .uk domain, or a known UK outlet on another domain."""
+    """True for UK outlets: a .uk domain, or a known UK outlet on another domain,
+    unless the outlet is excluded."""
     d = _domain(url_or_domain)
-    if not d:
+    if not d or any(d == x or d.endswith("." + x) for x in EXCLUDED_OUTLETS):
         return False
     known = set(UK_OUTLETS) | {_domain(x) for x in extra}
     return d.endswith(".uk") or d == "uk" or any(d == k or d.endswith("." + k) for k in known)

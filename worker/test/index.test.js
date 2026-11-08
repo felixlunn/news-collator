@@ -20,15 +20,14 @@ test("query matches the Python google_news_query format", () => {
 test("UK outlets only", () => {
   for (const ok of ["https://www.bbc.co.uk", "theguardian.com", "news.sky.com", "https://www.walesonline.co.uk"])
     assert.ok(isUkSource(ok), ok);
-  for (const no of ["https://www.cnn.com", "reuters.com", "theguardian.com.evil.io", ""])
+  for (const no of ["https://www.cnn.com", "reuters.com", "theguardian.com.evil.io", "", "https://www.thetimes.com", "thetimes.co.uk"])
     assert.ok(!isUkSource(no), no);
 });
 
-test("Google News RSS is parsed and non-UK results dropped", () => {
+test("Google News RSS is parsed; non-UK and excluded outlets dropped", () => {
   const items = parseGoogleNews(RSS);
   assert.deepEqual(items.map((i) => [i.t, i.o]), [
     ["Iran warns UK over sanctions on Revolutionary Guard", "BBC News"],
-    ["UK sanctions Iranian officials over crackdown", "The Times"],
     ["Ministers respond to Iran sanctions report", "manchestereveningnews.co.uk"],
   ]);
   assert.equal(items[0].p, "2026-11-08T16:00:00.000Z");
@@ -52,7 +51,7 @@ test("a search calls Google News UK and returns UK items", async (t) => {
   const body = await res.json();
   assert.equal(res.status, 200);
   assert.match(called, /news\.google\.com\/rss\/search\?q=%28Iran\+OR\+Tehran%29\+-football\+when%3A3d&hl=en-GB&gl=GB/);
-  assert.equal(body.items.length, 3);
+  assert.equal(body.items.length, 2);
 });
 
 test("upstream failures are reported, not thrown", async (t) => {

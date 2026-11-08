@@ -226,6 +226,15 @@ class TestOfficial(unittest.TestCase):
             self.assertTrue(all(set(a.departments) == {"westminster"} for a in store.recent(hours=24 * 365 * 5)
                                 if not a.is_official))
 
+    def test_removed_outlets_are_purged(self):
+        arts = load_fixture_articles()  # outlets "Outlet A" and "Outlet B"
+        with tempfile.TemporaryDirectory() as tmp, Store(Path(tmp) / "t.db") as store:
+            store.save(arts + [self.statements[0]])
+            removed = store.purge_outlets({"Outlet A"})
+            self.assertEqual(removed, sum(a.outlet == "Outlet B" for a in arts))
+            left = store.recent(hours=24 * 365 * 5, filed_only=False)
+            self.assertTrue(all(a.outlet == "Outlet A" or a.is_official for a in left))
+
     def test_old_database_is_migrated(self):
         with tempfile.TemporaryDirectory() as tmp:
             db = Path(tmp) / "old.db"
@@ -266,22 +275,21 @@ class TestTags(unittest.TestCase):
     def test_parse_gdelt(self):
         payload = json.loads((FIXTURES / "gdelt_artlist.json").read_text())
         found = parse_gdelt(payload, "vawg")
-        self.assertEqual(len(found), 2)  # untitled and non-UK (nytimes.com) results dropped
-        self.assertEqual(found[0].outlet, "The Times")          # known domain gets a display name
-        self.assertEqual(found[1].outlet, "localpaper.co.uk")   # unknown domain shown as is
+        # Untitled, non-UK (nytimes.com) and excluded (The Times) results are dropped.
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0].outlet, "localpaper.co.uk")   # unknown UK domain shown as is
         self.assertEqual(found[0].kind, SEARCH)
         self.assertEqual(found[0].tags, ["vawg"])
-        self.assertEqual(found[0].published, datetime(2026, 11, 8, 9, 15, tzinfo=timezone.utc))
+        self.assertEqual(found[0].published, datetime(2026, 11, 7, 18, 0, tzinfo=timezone.utc))
 
     def test_google_news(self):
         self.assertEqual(google_news_query(self.TAG, 72),
                          '(VAWG OR "violence against women" OR "domestic abuse" OR "rape conviction") '
                          '-football when:3d')
         found = parse_google_news((FIXTURES / "google_news.xml").read_bytes(), "iran")
-        # CNN and Reuters are dropped: UK outlets only.
+        # CNN and Reuters are dropped (UK outlets only); so is The Times (excluded outlet).
         self.assertEqual([(a.title, a.outlet) for a in found],
                          [("Iran warns UK over sanctions on Revolutionary Guard", "BBC News"),
-                          ("UK sanctions Iranian officials over crackdown", "The Times"),
                           ("Ministers respond to Iran sanctions report", "manchestereveningnews.co.uk")])
         extra = parse_google_news((FIXTURES / "google_news.xml").read_bytes(), "iran", uk_domains=("reuters.com",))
         self.assertIn("Iran talks stall", [a.title for a in extra])  # configurable additions
@@ -292,8 +300,7 @@ class TestTags(unittest.TestCase):
                        outlet="BBC News")
         found = parse_google_news((FIXTURES / "google_news.xml").read_bytes(), "iran")
         kept = drop_duplicate_search_results([feed] + found)
-        self.assertEqual([a.title for a in kept], [feed.title, "UK sanctions Iranian officials over crackdown",
-                                                   "Ministers respond to Iran sanctions report"])
+        self.assertEqual([a.title for a in kept], [feed.title, "Ministers respond to Iran sanctions report"])
         self.assertEqual(feed.tags, ["iran"])  # the feed article inherits the search tag
 
     def test_uk_sources(self):
@@ -301,7 +308,8 @@ class TestTags(unittest.TestCase):
         for ok in ("https://www.bbc.co.uk/news", "theguardian.com", "news.sky.com", "www.ft.com",
                    "https://www.walesonline.co.uk/x", "gov.uk"):
             self.assertTrue(is_uk_source(ok), ok)
-        for no in ("cnn.com", "https://www.nytimes.com/x", "reuters.com", "aljazeera.com", "", "theguardian.com.evil.io"):
+        for no in ("cnn.com", "https://www.nytimes.com/x", "reuters.com", "aljazeera.com", "", "theguardian.com.evil.io",
+                   "https://www.thetimes.com/uk", "thetimes.co.uk"):  # excluded outlets
             self.assertFalse(is_uk_source(no), no)
 
     def test_removed_tags_are_forgotten(self):

@@ -65,8 +65,9 @@ def cmd_fetch(args: argparse.Namespace, config: Config) -> int:
         new = store.save(articles + official + found)
         if args.prune_days:
             store.prune(args.prune_days)
-        # Drop search results belonging to tags that have been removed from the config.
+        # Drop search results for removed tags, and articles from removed or disabled outlets.
         store.purge_tags({t.slug for t in tags})
+        store.purge_outlets({o.name for o in config.outlets if o.enabled})
         # Re-sort everything already stored under the current rules, so keyword
         # changes apply across the whole window, not just to newly fetched items.
         stored = store.news_articles()
