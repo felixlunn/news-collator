@@ -43,6 +43,7 @@ GDELT_MAX_RECORDS = 75
 GDELT_PAUSE_SECONDS = 5.5          # GDELT allows one request every 5 seconds
 GDELT_RETRY_WAITS = (15, 30)       # back-off after "429 Too Many Requests"
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search"
+GOOGLE_RETRY_WAIT = 20             # one retry after "503 Service Unavailable" / 429
 PROVIDERS = ("google_news", "gdelt")
 
 # Display names for common GDELT domains; anything else shows its domain.
@@ -199,14 +200,27 @@ def _gdelt(tag: Tag, settings: SearchSettings, hours: int) -> list[Article]:
                 raise
             log.info("GDELT rate-limited for tag '%s'; retrying in %ss", tag.slug, wait)
             time.sleep(wait)
-    payload = json.loads(body) if body.strip() else {}  # GDELT answers errors in plain text -> ValueError
+    try:
+        payload = json.loads(body) if body.strip() else {}
+    except ValueError:
+        # GDELT explains query problems in plain text rather than JSON.
+        raise ValueError(f"GDELT replied: {body[:200].decode('utf-8', 'replace').strip()}") from None
     return parse_gdelt(payload, tag.slug)
 
 
 def _google_news(tag: Tag, settings: SearchSettings, hours: int) -> list[Article]:
     """One Google News search (UK English edition). Raises on failure."""
     params = {"q": google_news_query(tag, hours), "hl": "en-GB", "gl": "GB", "ceid": "GB:en"}
-    return parse_google_news(download(f"{GOOGLE_NEWS_RSS}?{urlencode(params)}"), tag.slug)
+    url = f"{GOOGLE_NEWS_RSS}?{urlencode(params)}"
+    try:
+        body = download(url)
+    except urllib.error.HTTPError as exc:
+        if exc.code not in (429, 503):
+            raise
+        log.info("Google News busy for tag '%s' (%s); retrying in %ss", tag.slug, exc.code, GOOGLE_RETRY_WAIT)
+        time.sleep(GOOGLE_RETRY_WAIT)
+        body = download(url)
+    return parse_google_news(body, tag.slug)
 
 
 _PROVIDER_FUNCS = {"gdelt": _gdelt, "google_news": _google_news}
