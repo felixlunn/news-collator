@@ -37,7 +37,7 @@ hourly) builds up a history and nothing is lost when an item drops off a feed.
 | `digest` | Render HTML or Markdown from stored articles (`--dept`, `--hours`, `--format`, `--out`). |
 | `site` | Build the static website: homepage plus one page per department (`--hours`, `--out`). |
 | `explain "headline" --summary "…"` | Show every department's score and the terms that matched. Use this when tuning. |
-| `check-feeds` | Test every feed URL and report item counts, errors and stale feeds. |
+| `check-feeds` | Test every feed (or candidates with `--url …`) and report item counts, newest item, errors and stale feeds. Also available as the manual *Check feeds* workflow. |
 | `audit` | Write a CSV of every fetched article with its scores and matched terms, for tuning. The workflow also saves one each run as a downloadable artifact. |
 | `departments` | List department slugs. |
 | `tags` | List team tags and the media search each runs. |
@@ -78,9 +78,10 @@ Everything editable lives in `config/`:
 
 ## Website
 
-The digests are published as a website, **Despatch**, on GitHub Pages, rebuilt around 06:00,
-12:00 and 17:00 UTC every weekday by `.github/workflows/digest.yml`, showing
-the last 72 hours (so Monday mornings cover the weekend):
+The digests are published as a website, **Despatch**, on GitHub Pages, rebuilt
+every 30 minutes from 06:00 to 18:00 UK time on weekdays by
+`.github/workflows/digest.yml`, showing the last 72 hours (so Monday mornings
+cover the weekend):
 
 - **Homepage** (`index.html`): the most reported stories across all outlets, and
   a table of each department's coverage per day, shaded by volume.

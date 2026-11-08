@@ -1,15 +1,18 @@
 # Builds the news digest website and publishes it to GitHub Pages.
 #
-# Runs three times each weekday and can be triggered by hand from the
-# Actions tab ("Run workflow"). Times are UTC; minutes are offset from :00
-# because GitHub delays scheduled jobs at the top of the hour.
+# Runs every 30 minutes from 06:00 to 18:00 UK time, Monday to Friday, and can
+# be triggered by hand from the Actions tab ("Run workflow").
+#
+# GitHub schedules in UTC only, so the cron below covers both GMT and BST
+# (05:00-18:59 UTC) and the `gate` job skips runs outside 06:00-18:00 UK time.
+# Minutes are :02 and :32 because GitHub delays jobs scheduled exactly on the hour.
 #
 # One-off setup: repo Settings → Pages → Source: "GitHub Actions".
 name: Publish digest site
 
 on:
   schedule:
-    - cron: "47 5,11,16 * * 1-5"   # ~06:00, 12:00, 17:00 UTC, Mon–Fri
+    - cron: "2,32 5-18 * * 1-5"
   workflow_dispatch:
 
 # Required for the Pages deployment.
@@ -18,13 +21,41 @@ permissions:
   pages: write
   id-token: write
 
-# Never run two deployments at once; let an in-progress one finish.
+# Never run two deployments at once; a new run waits for the current one.
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
+  # Decides whether this run is inside UK working hours, and whether it's the
+  # first run of the day (which also writes the classification audit).
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.when.outputs.go }}
+      audit: ${{ steps.when.outputs.audit }}
+    steps:
+      - id: when
+        env:
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          now = datetime.now(ZoneInfo("Europe/London"))
+          minutes = now.hour * 60 + now.minute
+          # 06:00 to 18:00, with 20 minutes' grace for GitHub's scheduling delays.
+          in_hours = now.weekday() < 5 and 6 * 60 <= minutes <= 18 * 60 + 20
+          manual = os.environ["MANUAL"] == "true"
+          print(f"go={'true' if manual or in_hours else 'false'}")
+          print(f"audit={'true' if manual or (in_hours and minutes < 6 * 60 + 30) else 'false'}")
+          PY
+          cat "$GITHUB_OUTPUT"
+
   build:
+    needs: gate
+    if: needs.gate.outputs.go == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,11 +85,14 @@ jobs:
         run: python -m news_collator site --hours 72 --out site
 
       # Classification report for tuning keywords: download it from the run's
-      # summary page under "Artifacts". Kept for 7 days.
+      # summary page under "Artifacts". Kept for 7 days. Written once a day
+      # (and on manual runs), since it fetches every feed again.
       - name: Write classification audit
+        if: needs.gate.outputs.audit == 'true'
         run: python -m news_collator audit --out audit/audit.csv
 
-      - uses: actions/upload-artifact@v4
+      - if: needs.gate.outputs.audit == 'true'
+        uses: actions/upload-artifact@v4
         with:
           name: classification-audit
           path: audit/audit.csv

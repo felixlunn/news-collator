@@ -74,6 +74,76 @@ feeds = [
 # Government announcements and written statements are configured separately
 # in official.toml, so they can be filed by issuing department.
 
+[[outlet]]
+name = "Channel 4 News"
+enabled = true
+feeds = [
+  "https://www.channel4.com/news/feed",
+]
+
+[[outlet]]
+name = "Daily Mirror"
+enabled = true
+feeds = [
+  "https://www.mirror.co.uk/news/politics/?service=rss",
+  "https://www.mirror.co.uk/news/uk-news/?service=rss",
+]
+
+[[outlet]]
+name = "The i"
+enabled = true
+feeds = [
+  "https://inews.co.uk/category/news/politics/feed",
+  "https://inews.co.uk/feed",
+]
+
+[[outlet]]
+name = "New Statesman"
+enabled = true
+# The /politics/feed address returns malformed XML (checked November 2026).
+feeds = [
+  "https://www.newstatesman.com/feed",
+]
+
+# ---------------------------------------------------------------------------
+# Devolved coverage: Scotland, Wales and Northern Ireland.
+# ---------------------------------------------------------------------------
+
+[[outlet]]
+name = "BBC Scotland"
+enabled = true
+feeds = [
+  "https://feeds.bbci.co.uk/news/scotland/scotland_politics/rss.xml",
+  "https://feeds.bbci.co.uk/news/scotland/rss.xml",
+]
+
+[[outlet]]
+name = "BBC Wales"
+enabled = true
+feeds = [
+  "https://feeds.bbci.co.uk/news/wales/wales_politics/rss.xml",
+  "https://feeds.bbci.co.uk/news/wales/rss.xml",
+]
+
+[[outlet]]
+name = "The Herald"
+enabled = true
+feeds = [
+  "https://www.heraldscotland.com/politics/rss/",
+  "https://www.heraldscotland.com/news/rss/",
+]
+
+[[outlet]]
+name = "Belfast Telegraph"
+enabled = true
+feeds = [
+  "https://www.belfasttelegraph.co.uk/news/politics/rss/",
+  "https://www.belfasttelegraph.co.uk/rss",
+]
+
+# ITV News and The Spectator publish no RSS feeds (every candidate address
+# returned 404 in November 2026). Tag and live searches can still find them.
+
 # ---------------------------------------------------------------------------
 # General and world news from the same UK outlets. These widen what tags and
 # channels can search beyond politics sections. Their articles are classified
