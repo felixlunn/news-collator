@@ -99,9 +99,10 @@ as *Violence against women and girls* or *Iran*. Each tag is a name plus search
 terms, using the same syntax as department keywords. On every rebuild a tag:
 
 1. collects matching articles from the outlet feeds, and
-2. runs a media search of UK outlets through [GDELT](https://www.gdeltproject.org/),
-   an open index of world news, so it also finds coverage from outlets we don't
-   follow directly. Set `search = false` on a tag to skip this.
+2. runs a media search of UK outlets (Google News UK edition, falling back to
+   [GDELT](https://www.gdeltproject.org/), an open index of world news), so it
+   also finds coverage from outlets we don't follow directly. Set
+   `search = false` on a tag to skip this.
 
 Each team tag gets a page (`tags/<slug>.html`) and a row in the homepage's Tags
 table. Run `python -m news_collator tags` to see the search each tag runs.

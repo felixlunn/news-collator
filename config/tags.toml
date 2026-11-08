@@ -22,10 +22,10 @@
 [search]
 enabled = true
 country = "UK"   # GDELT source-country code; UK = United Kingdom
-# Tried in order until one answers. GDELT is an open news index but often
-# rate-limits shared servers such as GitHub's; Google News (UK edition) is the
-# fallback. Remove either to stop using it.
-providers = ["gdelt", "google_news"]
+# Tried in order until one answers. Google News (UK edition) is first because
+# GDELT, an open news index, refused most requests from GitHub's shared
+# servers in testing (November 2026). Remove either to stop using it.
+providers = ["google_news", "gdelt"]
 
 [tags.vawg]
 name = "Violence against women and girls"

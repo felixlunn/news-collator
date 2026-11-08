@@ -7,9 +7,9 @@ two levels:
     1. matches articles already collected from the outlet feeds, using the
        same term syntax as departments.toml, and
     2. optionally runs a media search restricted to UK outlets, so it finds
-       coverage beyond our feeds. Providers are tried in order: GDELT (an
-       open index of world news), then Google News search (UK edition) if
-       GDELT is unavailable or rate-limiting.
+       coverage beyond our feeds. Providers are tried in the order set in
+       tags.toml: by default Google News search (UK edition), then GDELT
+       (an open index of world news) if Google News doesn't answer.
 - Personal tags are created by readers on the website's Channels page and
   matched in their browser against everything the site has collected
   (articles.json). They use the same term syntax; see web.py.
@@ -43,7 +43,7 @@ GDELT_MAX_RECORDS = 75
 GDELT_PAUSE_SECONDS = 5.5          # GDELT allows one request every 5 seconds
 GDELT_RETRY_WAITS = (15, 30)       # back-off after "429 Too Many Requests"
 GOOGLE_NEWS_RSS = "https://news.google.com/rss/search"
-PROVIDERS = ("gdelt", "google_news")
+PROVIDERS = ("google_news", "gdelt")
 
 # Display names for common GDELT domains; anything else shows its domain.
 OUTLET_NAMES = {
