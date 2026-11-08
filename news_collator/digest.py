@@ -6,6 +6,7 @@ import html
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 
 from .config import Config
 from .models import Article
@@ -157,6 +158,8 @@ article a.t:hover{text-decoration:underline}
 .also a{color:var(--muted)}
 .tag{display:inline-block;background:var(--chip);border-radius:4px;padding:0 6px;margin-right:4px;font-size:11px}
 .empty{color:var(--muted);font-style:italic}
+nav a.on{background:var(--accent);color:var(--bg)}nav a.on span{color:var(--bg)}
+h2 a.page{float:right;font-size:12px;font-weight:normal;color:var(--accent);text-decoration:none;margin-top:4px}
 """
 
 # Client-side filter: hides stories whose text doesn't contain the query.
@@ -168,22 +171,38 @@ document.querySelectorAll('article').forEach(a=>{a.style.display=a.textContent.t
 
 
 def render_html(articles: list[Article], config: Config, hours: int,
-                only: str | None = None) -> str:
-    """Self-contained HTML page with a department navigation bar and text filter."""
+                only: str | None = None, site: bool = False) -> str:
+    """Self-contained HTML page with a department navigation bar and text filter.
+
+    With site=True the page is part of the multi-page website built by
+    `build_site`: the navigation links between pages instead of to anchors
+    (index.html at the root, department pages under departments/).
+    """
     esc = html.escape
     names = {d.slug: d.name for d in config.departments}
-    sections = [s for s in build_sections(articles, config) if not only or s[0] == only]
+    all_sections = build_sections(articles, config)
+    sections = [s for s in all_sections if not only or s[0] == only]
     generated = datetime.now(timezone.utc).strftime("%d %B %Y, %H:%M UTC")
     total = len(articles) if not only else sum(len(s[2]) for s in sections)
 
-    nav = "".join(f'<a href="#{slug}">{esc(name)} <span>{len(stories)}</span></a>'
-                  for slug, name, stories in sections if stories)
+    if site and only:
+        # Department page: jump to the homepage or any other department's page.
+        chips = ['<a href="../index.html">← All departments</a>']
+        for slug, name, stories in all_sections:
+            current = ' class="on" aria-current="page"' if slug == only else ""
+            chips.append(f'<a href="{slug}.html"{current}>{esc(name)} <span>{len(stories)}</span></a>')
+        nav = "".join(chips)
+    else:
+        nav = "".join(f'<a href="#{slug}">{esc(name)} <span>{len(stories)}</span></a>'
+                      for slug, name, stories in sections if stories)
 
     body = []
     for slug, name, stories in sections:
         if not stories and not only:
             continue  # skip empty departments in the combined view
-        body.append(f'<section id="{slug}"><h2>{esc(name)}</h2>')
+        team_link = (f' <a class="page" href="departments/{slug}.html">Department page →</a>'
+                     if site and not only else "")
+        body.append(f'<section id="{slug}"><h2>{esc(name)}{team_link}</h2>')
         if not stories:
             body.append('<p class="empty">Nothing in this window.</p>')
         for s in stories:
@@ -211,9 +230,34 @@ def render_html(articles: list[Article], config: Config, hours: int,
 <title>{esc(title)}</title><style>{_CSS}</style></head>
 <body>
 <header><h1>{esc(title)}</h1>
-<div class="meta">Last {hours} hours · {total} articles · generated {generated}</div>
+<div class="meta">Last {hours} hours · {total} article{"" if total == 1 else "s"} · generated {generated}</div>
 <input id="q" type="search" placeholder="Filter stories…" aria-label="Filter stories"></header>
 <nav><div class="wrap">{nav}</div></nav>
 <main>{''.join(body)}</main>
 <script>{_JS}</script>
 </body></html>"""
+
+
+# ---------------------------------------------------------------------------
+# Static website
+# ---------------------------------------------------------------------------
+
+def build_site(articles: list[Article], config: Config, hours: int, out_dir: Path) -> list[Path]:
+    """Write a static website to `out_dir`, ready for GitHub Pages or any web host.
+
+        index.html                  combined digest, all departments
+        departments/<slug>.html     one page per department (bookmarkable by teams)
+
+    Returns the paths written.
+    """
+    (out_dir / "departments").mkdir(parents=True, exist_ok=True)
+    # Tell GitHub Pages to serve files as-is rather than through Jekyll.
+    (out_dir / ".nojekyll").touch()
+
+    written = [out_dir / "index.html"]
+    written[0].write_text(render_html(articles, config, hours, site=True), encoding="utf-8")
+    for dept in config.departments:
+        path = out_dir / "departments" / f"{dept.slug}.html"
+        path.write_text(render_html(articles, config, hours, only=dept.slug, site=True), encoding="utf-8")
+        written.append(path)
+    return written

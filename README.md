@@ -32,6 +32,7 @@ hourly) builds up a history and nothing is lost when an item drops off a feed.
 | `run` | `fetch` then `digest` |
 | `fetch` | Download all feeds, classify, save to the database. Prunes items older than 30 days (`--prune-days`). |
 | `digest` | Render HTML or Markdown from stored articles (`--dept`, `--hours`, `--format`, `--out`). |
+| `site` | Build the static website: homepage plus one page per department (`--hours`, `--out`). |
 | `explain "headline" --summary "…"` | Show every department's score and the terms that matched. Use this when tuning. |
 | `check-feeds` | Test every feed URL and report item counts or errors. |
 | `departments` | List department slugs. |
@@ -57,12 +58,22 @@ Everything editable lives in `config/`:
 Ministers' names are intentionally not included as they change at reshuffles —
 add them locally if useful.
 
-## Running on a schedule
+## Website
 
-`.github/workflows/digest.yml` runs the collator every weekday morning on
-GitHub Actions and uploads the digests as a downloadable artifact. Adjust the
-cron line to taste, or run `python -m news_collator fetch` from a server cron
-job instead.
+The digests are published as a website on GitHub Pages, rebuilt around 06:00,
+12:00 and 17:00 UTC every weekday by `.github/workflows/digest.yml`:
+
+- **Homepage** (`index.html`): every department on one page.
+- **Department pages** (`departments/<slug>.html`): one per research team, for
+  bookmarking, e.g. `departments/moj.html` or `departments/home-office.html`.
+
+One-off setup: in the repo go to **Settings → Pages** and set **Source** to
+**GitHub Actions**. To publish immediately, open the **Actions** tab and choose
+**Publish digest site → Run workflow**.
+
+To build the site locally: `python -m news_collator fetch && python -m news_collator site`
+(writes to `site/`). Each scheduled run starts fresh from the current feeds, so
+the site shows a rolling 24-hour window rather than an archive.
 
 ## Tests
 
@@ -82,7 +93,7 @@ news_collator/
   fetch.py           concurrent feed download + RSS/Atom parsing
   classify.py        rule-based department scoring
   store.py           SQLite persistence
-  digest.py          story grouping, HTML and Markdown rendering
+  digest.py          story grouping, HTML/Markdown rendering, static site
   cli.py             command-line interface
 tests/               unit tests and fixture feeds
 ```

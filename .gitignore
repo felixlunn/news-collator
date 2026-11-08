@@ -1,6 +1,7 @@
 # Generated data — rebuilt on each run
 data/
 output/
+site/
 
 # Python
 __pycache__/

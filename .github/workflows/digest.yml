@@ -1,15 +1,30 @@
-# Builds the news digests every weekday morning and stores them as a
-# downloadable workflow artifact. Can also be triggered manually from the
-# Actions tab ("Run workflow").
-name: Daily digest
+# Builds the news digest website and publishes it to GitHub Pages.
+#
+# Runs three times each weekday and can be triggered by hand from the
+# Actions tab ("Run workflow"). Times are UTC; minutes are offset from :00
+# because GitHub delays scheduled jobs at the top of the hour.
+#
+# One-off setup: repo Settings → Pages → Source: "GitHub Actions".
+name: Publish digest site
 
 on:
   schedule:
-    - cron: "0 6 * * 1-5"   # 06:00 UTC, Mon–Fri
+    - cron: "47 5,11,16 * * 1-5"   # ~06:00, 12:00, 17:00 UTC, Mon–Fri
   workflow_dispatch:
 
+# Required for the Pages deployment.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two deployments at once; let an in-progress one finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
-  digest:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,17 +36,23 @@ jobs:
       - name: Run tests
         run: python -m unittest discover tests
 
-      - name: Fetch and build combined digest
-        run: python -m news_collator run --hours 24
+      # -v logs any feed that fails, so broken URLs show up in the run log.
+      - name: Fetch and classify articles
+        run: python -m news_collator -v fetch
 
-      - name: Build per-department digests
-        run: |
-          for dept in $(python -m news_collator departments | cut -d' ' -f1); do
-            python -m news_collator digest --dept "$dept" --hours 24
-          done
+      - name: Build website
+        run: python -m news_collator site --hours 24 --out site
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-pages-artifact@v3
         with:
-          name: digests-${{ github.run_number }}
-          path: output/
-          retention-days: 14
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

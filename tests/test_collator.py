@@ -7,7 +7,7 @@ from pathlib import Path
 
 from news_collator.classify import Classifier, compile_term
 from news_collator.config import load_config
-from news_collator.digest import group_stories, render_html, render_markdown
+from news_collator.digest import build_site, group_stories, render_html, render_markdown
 from news_collator.fetch import parse_date, parse_feed, strip_html
 from news_collator.models import Article, normalise_url
 from news_collator.store import Store
@@ -103,6 +103,21 @@ class TestDigestAndStore(unittest.TestCase):
         md = render_markdown(arts, CONFIG, 24, only="moj")
         self.assertIn("## Ministry of Justice", md)
         self.assertNotIn("## Home Office", md)
+
+    def test_build_site(self):
+        arts = Classifier(CONFIG.departments).classify_all(load_fixture_articles())
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            pages = build_site(arts, CONFIG, 24, out)
+            self.assertEqual(len(pages), 1 + len(CONFIG.departments))
+            self.assertTrue((out / ".nojekyll").exists())
+            index = (out / "index.html").read_text()
+            self.assertIn('href="departments/moj.html"', index)
+            moj = (out / "departments" / "moj.html").read_text()
+            self.assertIn('href="../index.html"', moj)
+            self.assertIn('href="moj.html" class="on"', moj)
+            self.assertIn("Prisons near capacity", moj)
+            self.assertNotIn("small boats", moj)
 
 
 if __name__ == "__main__":

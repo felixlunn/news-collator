@@ -3,6 +3,7 @@
     python -m news_collator run                    # fetch, classify, store, write digest
     python -m news_collator fetch                  # fetch + store only (e.g. from cron)
     python -m news_collator digest --dept moj      # render from what's stored
+    python -m news_collator site                   # build the static website
     python -m news_collator explain "headline …"   # debug why text maps where it does
     python -m news_collator check-feeds            # test every feed URL
     python -m news_collator departments            # list department slugs
@@ -17,7 +18,7 @@ from pathlib import Path
 
 from .classify import DEFAULT_THRESHOLD, Classifier
 from .config import DEFAULT_CONFIG_DIR, Config, UnknownDepartmentError, load_config
-from .digest import render_html, render_markdown
+from .digest import build_site, render_html, render_markdown
 from .fetch import fetch_all, fetch_feed
 from .models import Article
 from .store import Store
@@ -62,6 +63,15 @@ def cmd_digest(args: argparse.Namespace, config: Config) -> int:
     path = args.out / f"digest-{args.dept or 'all'}.{args.format}"
     path.write_text(text, encoding="utf-8")
     print(f"Wrote {path} ({len(articles)} articles).")
+    return 0
+
+
+def cmd_site(args: argparse.Namespace, config: Config) -> int:
+    """Build the multi-page static website from the database."""
+    with Store(args.db) as store:
+        articles = store.recent(hours=args.hours)
+    pages = build_site(articles, config, args.hours, args.out)
+    print(f"Wrote {len(pages)} pages to {args.out}/ ({len(articles)} articles).")
     return 0
 
 
@@ -132,6 +142,10 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--format", choices=("html", "md"), default="html")
         sp.add_argument("--out", type=Path, default=DEFAULT_OUT, help="output directory")
 
+    site = sub.add_parser("site", help="build the static website (homepage + a page per department)")
+    site.add_argument("--hours", type=int, default=24, help="look-back window (default 24)")
+    site.add_argument("--out", type=Path, default=Path("site"), help="output directory (default site/)")
+
     explain = sub.add_parser("explain", help="show how a headline would be classified")
     explain.add_argument("title")
     explain.add_argument("--summary", default="")
@@ -142,7 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 COMMANDS = {
-    "fetch": cmd_fetch, "digest": cmd_digest, "run": cmd_run, "explain": cmd_explain,
+    "fetch": cmd_fetch, "digest": cmd_digest, "site": cmd_site, "run": cmd_run, "explain": cmd_explain,
     "check-feeds": cmd_check_feeds, "departments": cmd_departments,
 }
 
