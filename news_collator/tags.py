@@ -91,6 +91,7 @@ class SearchSettings:
     country: str = "UK"  # GDELT source-country code (FIPS: UK = United Kingdom)
     providers: tuple[str, ...] = PROVIDERS  # tried in order until one answers
     uk_domains: tuple[str, ...] = ()  # extra UK outlet domains to accept (beyond .uk and UK_OUTLETS)
+    live_search_url: str = ""  # search Worker for personal tags on the Channels page (worker/)
 
 
 def load_tags(config_dir: Path | str = DEFAULT_CONFIG_DIR) -> tuple[tuple[Tag, ...], SearchSettings]:
@@ -113,7 +114,8 @@ def load_tags(config_dir: Path | str = DEFAULT_CONFIG_DIR) -> tuple[tuple[Tag, .
     if unknown:
         raise ValueError(f"tags.toml: unknown search providers {sorted(unknown)}; choose from {PROVIDERS}")
     return tuple(tags), SearchSettings(enabled=s.get("enabled", True), country=s.get("country", "UK"),
-                                       providers=providers, uk_domains=tuple(s.get("uk_domains", [])))
+                                       providers=providers, uk_domains=tuple(s.get("uk_domains", [])),
+                                       live_search_url=str(s.get("live_search_url", "")).rstrip("/"))
 
 
 # ---------------------------------------------------------------------------

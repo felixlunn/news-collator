@@ -119,6 +119,11 @@ search everything the site has collected. Channels are saved in the reader's
 browser (there's no server or log-in); the *Copy share link* button encodes the
 whole channel in a link, so colleagues can open it and save their own copy.
 
+**Live search for personal tags** is optional: deploy the search Worker in
+`worker/` (a free Cloudflare Worker; setup steps in `worker/README.md`) and set
+`live_search_url` in `config/tags.toml`. Personal tags then also search UK
+outlets live, not just what the site has collected.
+
 **Open data:** `articles.json` holds every item collected in the window with its
 departments and tags.
 
@@ -141,6 +146,7 @@ news_collator/
   official.py        GOV.UK announcements and Parliament written statements
   tags.py            team tags and GDELT media search
   static/            Channels page script and styles
+worker/              optional Cloudflare Worker for live search (see worker/README.md)
   classify.py        rule-based department scoring
   store.py           SQLite persistence
   digest.py          story grouping and ordering, Markdown digest

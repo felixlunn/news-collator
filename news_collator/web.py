@@ -622,7 +622,8 @@ def render_tag_page(articles: list[Article], config: Config, hours: int, tags: t
     return _page(f"{tag.name} | {SITE_NAME}", _masthead(links, _updated(now), with_filter=True), content)
 
 
-def export_json(articles: list[Article], config: Config, hours: int, tags: tuple[Tag, ...]) -> dict:
+def export_json(articles: list[Article], config: Config, hours: int, tags: tuple[Tag, ...],
+                search_url: str = "") -> dict:
     """Everything collected in the window, as open data and for the Channels page.
 
     Compact keys keep the file small: u url, t title, s summary, o outlet,
@@ -640,6 +641,7 @@ def export_json(articles: list[Article], config: Config, hours: int, tags: tuple
     return {
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "hours": hours,
+        "search_url": search_url,  # live search Worker for personal tags; "" = off
         "departments": [{"slug": d.slug, "name": d.name} for d in config.departments],
         "tags": [{"slug": t.slug, "name": t.name, "terms": list(t.terms)} for t in tags],
         "items": items,
@@ -691,7 +693,7 @@ def drop_duplicate_search_results(articles: list[Article]) -> list[Article]:
 
 
 def build_site(articles: list[Article], config: Config, hours: int, out_dir: Path,
-               tags: tuple[Tag, ...] = ()) -> list[Path]:
+               tags: tuple[Tag, ...] = (), search_url: str = "") -> list[Path]:
     """Write the static website to `out_dir`, ready for GitHub Pages or any web host.
 
         index.html                  overview: most reported, department and tag tables
@@ -714,7 +716,7 @@ def build_site(articles: list[Article], config: Config, hours: int, out_dir: Pat
         path.write_text(text, encoding="utf-8")
         return path
 
-    data = export_json(articles, config, hours, tags)
+    data = export_json(articles, config, hours, tags, search_url)
     written = [write(out_dir / "index.html", render_html(articles, config, hours, site=True, tags=tags)),
                write(out_dir / "channels.html", render_channels_page(articles, config, hours, tags, data)),
                write(out_dir / "articles.json", json.dumps(data, ensure_ascii=False))]

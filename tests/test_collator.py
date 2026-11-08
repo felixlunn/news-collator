@@ -153,6 +153,9 @@ class TestDigestAndStore(unittest.TestCase):
             self.assertFalse((out / "tags" / "boats.html").exists())
             data = json.loads((out / "articles.json").read_text())
             self.assertEqual(data["tags"], [])
+            self.assertEqual(data["search_url"], "")  # live search off unless configured
+            build_site(arts, CONFIG, 24, out, search_url="https://search.example.workers.dev")
+            self.assertIn('"search_url":"https://search.example.workers.dev"', (out / "channels.html").read_text())
             by_title = {i["t"]: i for i in data["items"]}
             self.assertEqual(by_title["Home Secretary unveils plan to curb small boats crossings"]["g"], [])
             self.assertIn("moj", by_title["Prisons near capacity as early release scheme extended"]["d"])

@@ -31,6 +31,10 @@ country = "UK"   # GDELT source-country code; UK = United Kingdom
 # servers in testing (November 2026). Remove either to stop using it.
 providers = ["google_news", "gdelt"]
 uk_domains = []  # extra UK outlet domains to accept, e.g. ["example-outlet.com"]
+# Address of the search Worker (worker/), which lets personal tags on the
+# Channels page search UK outlets live. Leave empty to search collected
+# coverage only. Example: "https://despatch-search.<your-subdomain>.workers.dev"
+live_search_url = ""
 
 # No team tags are defined yet. To add one, copy this template, remove the
 # leading "# " from each line and fill it in. The slug after "tags." becomes the

@@ -8,6 +8,9 @@
  * - Storage: channels are saved in this browser's localStorage. There is no
  *   server, so a channel is shared by link: the whole definition is encoded in
  *   the URL after #share=.
+ * - Live search: if DATA.search_url is set (the search Worker in worker/),
+ *   each personal tag also searches UK outlets live and the results are merged
+ *   in, de-duplicated against collected coverage by headline.
  * - Personal tag terms use the same syntax as the config files (web.py /
  *   classify.compile_term): whole words, case-insensitive, trailing * for any
  *   ending, ALL-CAPS acronyms and =terms case-sensitive.
@@ -19,6 +22,8 @@
   var root = document.getElementById("channels-app");
   var STORE_KEY = "despatch.channels.v1";
   var MAX_ITEMS = 400;
+  var SEARCH_URL = DATA.search_url || "";
+  var MAX_LIVE_TAGS = 5;  // live searches per channel view, to stay well inside the Worker's free quota
   var TZ = "Europe/London";
 
   var deptNames = {}, tagNames = {};
@@ -133,6 +138,63 @@
   // ---------------------------------------------------------------- matching
   function isOfficial(it) { return it.k === "govuk" || it.k === "written_statement"; }
 
+  // ---------------------------------------------------------------- live search
+  // Results per personal tag, keyed by its terms: {status: "pending"|"done"|"error", items}.
+  var live = {};
+  function liveKey(t) { return JSON.stringify([t.terms, t.exclude || []]); }
+  function liveTags(channel) { return SEARCH_URL ? channel.mine.slice(0, MAX_LIVE_TAGS) : []; }
+  function titleKey(t) { return (String(t).toLowerCase().match(/[a-z0-9]+/g) || []).join(" "); }
+
+  // Add live results to a channel's rows; a headline already present just gains the tag's name.
+  function mergeLive(channel, out) {
+    var byTitle = {};
+    out.forEach(function (r) { byTitle[titleKey(r.item.t)] = r; });
+    liveTags(channel).forEach(function (t) {
+      var res = live[liveKey(t)];
+      if (!res || res.status !== "done") return;
+      res.items.forEach(function (it) {
+        var k = titleKey(it.t), existing = byTitle[k];
+        if (existing) {
+          if (existing.why.indexOf(t.name) === -1) existing.why.push(t.name);
+          return;
+        }
+        if (DATA.items.some(function (d) { return titleKey(d.t) === k; })) return;  // collected, but not in this channel
+        var row = { item: { u: it.u, t: it.t, o: it.o, p: it.p, k: "search", s: "", d: [], g: [] }, why: [t.name] };
+        byTitle[k] = row;
+        out.push(row);
+      });
+    });
+  }
+
+  // Start any searches this channel still needs; `done` re-renders when each finishes.
+  function startLive(channel, done) {
+    liveTags(channel).forEach(function (t) {
+      var key = liveKey(t);
+      if (live[key]) return;
+      live[key] = { status: "pending", items: [] };
+      var url = SEARCH_URL + "/search?q=" + encodeURIComponent(t.terms.join(",")) +
+                "&x=" + encodeURIComponent((t.exclude || []).join(","));
+      fetch(url).then(function (r) { return r.json(); }).then(function (body) {
+        live[key] = body && Array.isArray(body.items) && !body.error
+          ? { status: "done", items: body.items } : { status: "error", items: [] };
+      }, function () {
+        live[key] = { status: "error", items: [] };
+      }).then(done);
+    });
+  }
+
+  function liveStatus(channel) {
+    var tags = liveTags(channel);
+    if (!tags.length) return "";
+    var states = tags.map(function (t) { return (live[liveKey(t)] || {}).status; });
+    var msg = states.indexOf("pending") > -1 || states.indexOf(undefined) > -1
+      ? "Searching UK outlets for your tags…"
+      : states.indexOf("error") > -1
+        ? "The live search didn't respond for some of your tags, so they show collected coverage only."
+        : "Your tags include a live search of UK outlets.";
+    return '<p class="live-status" role="status">' + esc(msg) + "</p>";
+  }
+
   // Returns [{item, why: [labels]}] for a channel, official first then newest.
   function run(channel) {
     var mine = channel.mine.map(compileTag);
@@ -150,6 +212,7 @@
       }
       if (why.length) out.push({ item: it, why: why });
     });
+    mergeLive(channel, out);
     out.sort(function (a, b) {
       var oa = isOfficial(a.item) ? 0 : 1, ob = isOfficial(b.item) ? 0 : 1;
       if (oa !== ob) return oa - ob;
@@ -264,7 +327,15 @@
     }).join("") + '<a class="chan-new" href="#new">New channel</a></nav>';
   }
 
+  var currentView = 0;
   function viewChannel(c, shared) {
+    var view = ++currentView;
+    startLive(c, function () {
+      if (view !== currentView) return;  // reader has moved on
+      var y = window.scrollY;
+      viewChannel(c, shared);
+      window.scrollTo(0, y);
+    });
     var rows = run(c);
     var banner = shared
       ? '<div class="chan-banner"><p>Someone shared this channel with you. Save it to keep it in this browser.</p>' +
@@ -277,7 +348,7 @@
     root.innerHTML = (shared ? "" : switcher(c.id)) + banner +
       '<div class="dept-head"><div><h1 class="page-title">' + esc(c.name) + "</h1>" +
       '<p class="page-sub">' + plural(rows.length, "story", "stories") + " in the last three days.</p>" +
-      '<p class="chan-sources">' + sourcesSummary(c) + "</p></div></div>" + actions + results(rows);
+      '<p class="chan-sources">' + sourcesSummary(c) + "</p>" + liveStatus(c) + "</div></div>" + actions + results(rows);
 
     root.onclick = function (e) {
       var act = e.target.getAttribute && e.target.getAttribute("data-act");
@@ -306,6 +377,7 @@
 
   // ---------------------------------------------------------------- editor
   function editor(existing) {
+    currentView++;  // stop pending live searches re-rendering over the form
     var c = existing ? JSON.parse(JSON.stringify(existing)) : { id: uid(), name: "", depts: [], tags: [], mine: [] };
     var isNew = !existing;
 
@@ -335,7 +407,9 @@
         '<fieldset><legend>Departments</legend><div class="checks">' + checks(DATA.departments, c.depts, "dept") + "</div></fieldset>" +
         (DATA.tags.length ? '<fieldset><legend>Tags</legend><div class="checks">' + checks(DATA.tags, c.tags, "tag") + "</div></fieldset>" : "") +
         '<fieldset><legend>Your own tags</legend>' +
-        '<p class="hint">Search for any words in headlines and summaries. Separate terms with commas; add * for any ending (sanction* finds sanctions). These search what this site has collected.</p>' +
+        '<p class="hint">Search for any words in headlines and summaries. Separate terms with commas; add * for any ending (sanction* finds sanctions). ' + (SEARCH_URL
+          ? "They search everything this site has collected, plus a live search of UK outlets."
+          : "They search what this site has collected.") + "</p>" +
         mineList() +
         '<div class="mine-add"><label class="field"><span>Tag name</span><input name="tname" maxlength="60" placeholder="Sanctions"></label>' +
         '<label class="field"><span>Terms</span><input name="tterms" placeholder="sanction*, asset freeze, OFSI"></label>' +
@@ -409,6 +483,7 @@
   }
 
   function intro() {
+    currentView++;
     root.innerHTML = '<h1 class="page-title">Your channels</h1>' +
       '<p class="page-sub">A channel is your own feed: any mix of departments' + (DATA.tags.length ? ", team tags" : "") +
       " and tags you write yourself, such as Ministry of Justice + Home Office + your own tag for a topic you follow.</p>" +

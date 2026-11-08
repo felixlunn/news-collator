@@ -12,6 +12,7 @@
 .chan-sources b{font-weight:600;color:var(--ink);margin-right:4px}
 .chan-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:20px 0 8px}
 .chan-status{font-size:14px;color:var(--accent)}
+.live-status{margin:8px 0 0;font-size:13px;color:var(--faint)}
 .chan-banner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;
   padding:14px 16px;margin:0 0 24px;background:var(--panel);border-left:3px solid var(--accent)}
 .chan-banner p{margin:0;font-size:15px}

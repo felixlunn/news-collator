@@ -100,10 +100,10 @@ def cmd_digest(args: argparse.Namespace, config: Config) -> int:
 
 def cmd_site(args: argparse.Namespace, config: Config) -> int:
     """Build the multi-page static website from the database."""
-    tags, _ = load_tags(args.config)
+    tags, settings = load_tags(args.config)
     with Store(args.db) as store:
         articles = store.recent(hours=args.hours, filed_only=False)
-    pages = build_site(articles, config, args.hours, args.out, tags=tags)
+    pages = build_site(articles, config, args.hours, args.out, tags=tags, search_url=settings.live_search_url)
     print(f"Wrote {len(pages)} pages to {args.out}/ ({len(articles)} articles).")
     return 0
 
