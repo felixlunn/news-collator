@@ -58,13 +58,13 @@ parliament_bodies = ["Department for Work and Pensions"]
 govuk_orgs = ["department-for-energy-security-and-net-zero"]
 parliament_bodies = ["Department for Energy Security and Net Zero"]
 
-[departments.dbt]
-govuk_orgs = ["department-for-business-and-trade"]
-parliament_bodies = ["Department for Business and Trade"]
-
-[departments.dsit]
-govuk_orgs = ["department-for-science-innovation-and-technology"]
-parliament_bodies = ["Department for Science, Innovation and Technology"]
+# Formed July 2026 from Business and Trade + Science, Innovation and Technology.
+# The predecessor organisations are kept so their final announcements still file here.
+[departments.dbist]
+govuk_orgs = ["department-for-business-innovation-science-and-trade",
+              "department-for-business-and-trade", "department-for-science-innovation-and-technology"]
+parliament_bodies = ["Department for Business, Innovation, Science and Trade",
+                     "Department for Business and Trade", "Department for Science, Innovation and Technology"]
 
 [departments.dcms]
 govuk_orgs = ["department-for-culture-media-and-sport"]

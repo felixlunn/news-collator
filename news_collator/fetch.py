@@ -11,7 +11,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 import zlib
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 
@@ -23,6 +23,7 @@ log = logging.getLogger(__name__)
 USER_AGENT = "PolicyNewsCollator/0.1"
 TIMEOUT_SECONDS = 15
 MAX_WORKERS = 8
+STALE_AFTER_DAYS = 7
 
 _ATOM = "{http://www.w3.org/2005/Atom}"
 _MEDIA_NS = "{http://search.yahoo.com/mrss/}"
@@ -151,13 +152,31 @@ def download(url: str, accept: str = FEED_ACCEPT) -> bytes:
         return decompress(resp.read())
 
 
-def fetch_feed(url: str, outlet: str) -> tuple[str, list[Article], str | None]:
-    """Fetch and parse one feed. Returns (url, articles, error_message_or_None).
+def stale_warning(articles: list[Article], now: datetime | None = None) -> str | None:
+    """A message if a feed's newest dated item is older than STALE_AFTER_DAYS.
 
-    Never raises: one broken feed must not stop the rest of the run.
+    Feeds sometimes keep responding after an outlet stops updating them (the
+    Telegraph's old section feeds did this), which otherwise goes unnoticed.
+    """
+    dates = [a.published for a in articles if a.published]
+    if not dates:
+        return None
+    newest = max(dates)
+    now = now or datetime.now(timezone.utc)
+    if now - newest > timedelta(days=STALE_AFTER_DAYS):
+        return f"stale feed: newest item is from {newest:%d %b %Y}"
+    return None
+
+
+def fetch_feed(url: str, outlet: str) -> tuple[str, list[Article], str | None]:
+    """Fetch and parse one feed. Returns (url, articles, problem_or_None).
+
+    Never raises: one broken feed must not stop the rest of the run. A stale
+    feed returns its (old) articles along with a warning.
     """
     try:
-        return url, parse_feed(download(url), outlet), None
+        items = parse_feed(download(url), outlet)
+        return url, items, stale_warning(items)
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         return url, [], f"network error: {exc}"
     except ET.ParseError as exc:

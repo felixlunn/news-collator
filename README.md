@@ -37,7 +37,8 @@ hourly) builds up a history and nothing is lost when an item drops off a feed.
 | `digest` | Render HTML or Markdown from stored articles (`--dept`, `--hours`, `--format`, `--out`). |
 | `site` | Build the static website: homepage plus one page per department (`--hours`, `--out`). |
 | `explain "headline" --summary "…"` | Show every department's score and the terms that matched. Use this when tuning. |
-| `check-feeds` | Test every feed URL and report item counts or errors. |
+| `check-feeds` | Test every feed URL and report item counts, errors and stale feeds. |
+| `audit` | Write a CSV of every fetched article with its scores and matched terms, for tuning. The workflow also saves one each run as a downloadable artifact. |
 | `departments` | List department slugs. |
 
 Global options: `--config DIR`, `--db PATH`, `--threshold N`, `-v`.
@@ -48,23 +49,26 @@ Everything editable lives in `config/`:
 
 - **`outlets.toml`** — outlets and their RSS/Atom feed URLs. Toggle with `enabled`.
   GOV.UK official announcements are included but off by default.
-- **`departments.toml`** — one block per department with three term lists:
-  - `strong` — names that almost certainly mean "this department" (3 points)
-  - `keywords` — policy-area vocabulary (1 point)
-  - `exclude` — vetoes the department if present (e.g. "tennis" for MoJ's "court")
+- **`departments.toml`** — one block per department (mirroring the current
+  machinery of government) plus *Parliament & party politics*. Each has:
+  - `strong` — names that almost certainly mean this department (4 points)
+  - `keywords` — policy-area vocabulary (2 points)
+  - `context` — ambiguous words that support a match but can't make one (1 point)
+  - `exclude` — vetoes the department if present
 
-  A match in the headline counts double. An article is assigned when it scores
-  **3 or more** (`--threshold`). Terms are whole-word and case-insensitive;
-  `prison*` matches any ending; ALL-CAPS acronyms like `SEND` or `AI` are
-  case-sensitive so they don't catch ordinary words.
-
+  Headline matches count double. A story is filed when a department scores
+  **4 or more** and has at least one strong term, keyword or name; it's filed
+  under further departments only if they score at least half as well as the
+  best. A `[global] exclude` list drops cartoons, podcasts, letters and
+  obituaries. Terms are whole-word and case-insensitive; `prison*` matches any
+  ending; ALL-CAPS acronyms and terms starting `=` (e.g. `=Budget`) are
+  case-sensitive.
+- **`people.toml`** — ministers' names per department, scored as keywords.
+  **Update it at every reshuffle**; a warning is logged once it is six months old.
 - **`official.toml`** — switches GOV.UK announcements and written statements on
   or off, and maps each department to its GOV.UK organisation slug(s) and the
   name Parliament uses for it. Run with `-v` to log any written statements from
   bodies that aren't mapped (e.g. the Leader of the House), which are skipped.
-
-Ministers' names are intentionally not included as they change at reshuffles —
-add them locally if useful.
 
 ## Website
 

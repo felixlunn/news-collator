@@ -114,6 +114,14 @@ class Store:
             art.departments[dept] = score
         return list(by_id.values())
 
+    def news_articles(self) -> list[Article]:
+        """Every stored news article (not official items), for re-classification."""
+        rows = self.conn.execute(
+            "SELECT url, title, summary, outlet, published FROM articles WHERE kind = 'news'")
+        return [Article(url=u, title=t, summary=sm, outlet=o,
+                        published=datetime.fromisoformat(p) if p else None)
+                for u, t, sm, o, p in rows]
+
     def prune(self, days: int) -> int:
         """Delete articles first seen more than `days` ago. Returns rows removed."""
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()

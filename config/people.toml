@@ -1,0 +1,73 @@
+# ---------------------------------------------------------------------------
+# Ministers and other named figures, mapped to departments.
+#
+# Headlines often name the minister rather than the department ("Mahmood's
+# immigration shake-up"), so names score as keywords (2 points; 4 in a
+# headline, enough on its own to file the story).
+#
+# KEEP THIS UP TO DATE: it goes stale at every reshuffle. When a minister moves,
+# move their name; when they leave, delete it. The loader logs a warning once
+# `as_of` is more than 180 days old as a reminder to review it.
+#
+# Use full names wherever a surname is ambiguous ("Lucy Powell", not "Powell",
+# which would also match the US Federal Reserve chair).
+# ---------------------------------------------------------------------------
+
+as_of = 2026-07-28
+source = "Burnham ministry, LabourList full government list (published 28 July 2026, updated 15 August 2026)"
+
+[departments.cabinet-office]
+people = ["Burnham", "Louise Haigh", "Haigh"]
+
+[departments.treasury]
+people = ["Healey", "Emma Reynolds"]
+
+[departments.home-office]
+people = ["Mahmood"]
+
+[departments.fcdo]
+people = ["Miliband"]
+
+[departments.moj]
+people = ["Alex Norris"]
+
+[departments.mod]
+people = ["Streeting"]
+
+[departments.dhsc]
+people = ["Yvette Cooper"]
+
+[departments.dfe]
+people = ["Lucy Powell"]
+
+[departments.dwp]
+people = ["McFadden"]
+
+[departments.desnz]
+people = ["Fahnbulleh"]
+
+[departments.dbist]
+people = ["Jonathan Reynolds"]
+
+[departments.dcms]
+people = ["Nandy"]
+
+[departments.defra]
+people = ["Angela Eagle"]
+
+[departments.mhclg]
+people = ["Rayner", "Pennycook"]
+
+[departments.dft]
+people = ["Heidi Alexander"]
+
+[departments.territorial]
+people = ["Chris Bryant", "Douglas Alexander", "Kinnock"]
+
+[departments.ago]
+people = ["Ellie Reeves"]
+
+# Opposition and minor-party leaders: filed under Parliament & party politics.
+# Not verified against a current source; review before relying on them.
+[departments.westminster]
+people = ["Badenoch", "Farage", "Ed Davey", "Jenrick"]

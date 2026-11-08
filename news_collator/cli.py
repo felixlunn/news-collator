@@ -40,7 +40,8 @@ DEFAULT_HOURS = 72  # look-back window; covers a full weekend on Monday mornings
 def cmd_fetch(args: argparse.Namespace, config: Config) -> int:
     """Fetch news and official sources, classify news, and store. Returns exit code."""
     articles, errors = fetch_all(config.outlets)
-    relevant = Classifier(config.departments, args.threshold).classify_all(articles)
+    classifier = Classifier.from_config(config, args.threshold)
+    relevant = classifier.classify_all(articles)
 
     # Official items arrive already filed under their issuing department.
     official, official_errors = fetch_official(config, args.official_hours)
@@ -51,6 +52,11 @@ def cmd_fetch(args: argparse.Namespace, config: Config) -> int:
         new = store.save(relevant + official)
         if args.prune_days:
             store.prune(args.prune_days)
+        # Re-sort everything already stored under the current rules, so keyword
+        # changes apply across the whole window, not just to newly fetched items.
+        stored = store.news_articles()
+        classifier.classify_all(stored)
+        store.save(stored)
 
     print(f"Fetched {len(articles)} news articles ({len(relevant)} matched a department) "
           f"and {len(official)} official items; {new} new.")
@@ -94,13 +100,26 @@ def cmd_run(args: argparse.Namespace, config: Config) -> int:
 
 def cmd_explain(args: argparse.Namespace, config: Config) -> int:
     """Show scores and matched terms for a piece of text — for tuning keywords."""
-    clf = Classifier(config.departments, args.threshold)
+    clf = Classifier.from_config(config, args.threshold)
     art = Article(url="https://example.invalid", title=args.title, outlet="-", summary=args.summary)
+    if clf.globally_excluded(art):
+        print("Headline matches a global exclude term (e.g. cartoon, podcast); never filed.")
+        return 0
     matches = clf.explain(art)
+    filed = clf.classify(art)
     if not matches:
         print("No department terms matched.")
     for m in matches:
-        status = "EXCLUDED" if m.excluded else ("assigned" if m.score >= args.threshold else "below threshold")
+        if m.excluded:
+            status = "excluded"
+        elif m.context_only:
+            status = "context words only"
+        elif m.slug in filed:
+            status = "filed"
+        elif m.score >= args.threshold:
+            status = "too weak beside best match"
+        else:
+            status = "below threshold"
         print(f"{m.slug:15} score {m.score:3}  [{status}]  {', '.join(m.terms)}")
     return 0
 
@@ -127,7 +146,7 @@ def cmd_audit(args: argparse.Namespace, config: Config) -> int:
     received, or filter for blanks to find relevant stories that were missed.
     Nothing is stored in the database.
     """
-    clf = Classifier(config.departments, args.threshold)
+    clf = Classifier.from_config(config, args.threshold)
     jobs = [(url, o.name) for o in config.outlets if o.enabled for url in o.feeds]
     seen: set[str] = set()
     rows = []
@@ -140,7 +159,7 @@ def cmd_audit(args: argparse.Namespace, config: Config) -> int:
                     continue
                 seen.add(art.id)
                 matches = clf.explain(art)
-                assigned = [m.slug for m in matches if m.score >= args.threshold and not m.excluded]
+                assigned = list(clf.classify(art))
                 rows.append({
                     "feed": feed, "outlet": art.outlet,
                     "published": art.published.isoformat() if art.published else "",

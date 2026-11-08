@@ -51,9 +51,10 @@ feeds = [
 [[outlet]]
 name = "The Telegraph"
 enabled = true
+# The section feeds (/politics/rss.xml, /news/rss.xml) stopped updating in
+# early 2025; the main feed is used instead. Check with `check-feeds`.
 feeds = [
-  "https://www.telegraph.co.uk/politics/rss.xml",
-  "https://www.telegraph.co.uk/news/rss.xml",
+  "https://www.telegraph.co.uk/rss.xml",
 ]
 
 [[outlet]]
