@@ -157,22 +157,10 @@ def fetch_written_statements(departments: tuple[Department, ...], hours: int
             log.warning("%s: %s", url, exc)
             return _dedupe_bicameral(articles), {url: str(exc)}
         if page == 0:
-            # Diagnostic: confirms the API shape and how many statements exist,
-            # so "0 statements" can be told apart from a parsing problem.
+            # Logged so "0 statements" can be told apart from a parsing problem.
             keys = sorted(payload) if isinstance(payload, dict) else type(payload).__name__
             log.info("Written statements API: totalResults=%s, keys=%s",
                      payload.get("totalResults") if isinstance(payload, dict) else "?", keys)
-            if isinstance(payload, dict) and not payload.get("results"):
-                # TEMPORARY diagnostic: what does the API return with no date filter?
-                try:
-                    probe = json.loads(download(f"{STATEMENTS_API}?take=5", accept="application/json"))
-                    log.info("Statements probe (no filter): totalResults=%s, dates=%s", probe.get("totalResults"),
-                             [r.get("value", r).get("dateMade") for r in probe.get("results", [])])
-                    probe = json.loads(download(f"{STATEMENTS_API}?take=5&madeWhenFrom={since}T00:00:00",
-                                                accept="application/json"))
-                    log.info("Statements probe (ISO datetime filter): totalResults=%s", probe.get("totalResults"))
-                except Exception as exc:
-                    log.info("Statements probe failed: %s", exc)
             if isinstance(payload, dict) and payload.get("results"):
                 first = payload["results"][0]
                 log.info("Written statements API: first result keys=%s",

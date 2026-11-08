@@ -2,7 +2,7 @@
 
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from news_collator.classify import Classifier, compile_term
@@ -163,6 +163,17 @@ class TestOfficial(unittest.TestCase):
         self.assertEqual(len(items), 2)  # identical headline not merged into the release
         html = render_html(news + [release], CONFIG, 24, only="moj")
         self.assertIn('<article class="pinned">', html)
+
+    def test_statements_windowed_by_day(self):
+        """A statement dated midnight on the window's first day is still included."""
+        a = _dedupe_bicameral(self.statements)[0]
+        start_of_day = (datetime.now(timezone.utc) - timedelta(hours=1)).replace(hour=0, minute=0, second=0,
+                                                                                microsecond=0)
+        a.published = start_of_day
+        with tempfile.TemporaryDirectory() as tmp, Store(Path(tmp) / "t.db") as store:
+            store.save([a])
+            # Window starts after midnight today, but the statement's day is today.
+            self.assertEqual(len(store.recent(hours=1)), 1)
 
     def test_old_database_is_migrated(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -83,15 +83,20 @@ class Store:
 
         Sorted newest first, each with its full department mapping.
         """
-        since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+        since_dt = datetime.now(timezone.utc) - timedelta(hours=hours)
+        since, since_day = since_dt.isoformat(), since_dt.date().isoformat()
+        # Written statements only carry a date (stored as midnight), so they are
+        # compared by day: one made on the window's first day is included.
         sql = """
             SELECT a.id, a.url, a.title, a.summary, a.outlet, a.published, a.kind,
                    ad.department, ad.score
             FROM articles a
             JOIN article_departments ad ON ad.article_id = a.id
-            WHERE COALESCE(a.published, a.first_seen) >= ?
+            WHERE CASE WHEN a.kind = 'written_statement' AND a.published IS NOT NULL
+                       THEN substr(a.published, 1, 10) >= ?
+                       ELSE COALESCE(a.published, a.first_seen) >= ? END
         """
-        params: list = [since]
+        params: list = [since_day, since]
         if department:
             sql += " AND a.id IN (SELECT article_id FROM article_departments WHERE department = ?)"
             params.append(department)
