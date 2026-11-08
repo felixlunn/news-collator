@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import Config
-from .models import Article
+from .models import KIND_LABELS, WRITTEN_STATEMENT, Article
 
 # Similar headlines from different outlets are grouped into one "story" so
 # researchers see each event once, with links to every outlet's version.
@@ -56,11 +56,18 @@ def group_stories(articles: list[Article]) -> list[Story]:
 
     Only groups articles from *different* outlets — one outlet rarely runs two
     versions of the same story, and merging them would hide distinct pieces.
+    Official items (GOV.UK, written statements) are never grouped: each is
+    shown as published, pinned in its own right.
     """
     stories: list[Story] = []
     for art in articles:
+        if art.is_official:
+            stories.append(Story(lead=art))
+            continue
         toks = _tokens(art.title)
         for story in stories:
+            if story.lead.is_official:
+                continue
             if art.outlet not in story.outlets and _similarity(toks, story.tokens) >= SIMILARITY_THRESHOLD:
                 story.others.append(art)
                 break
@@ -70,16 +77,21 @@ def group_stories(articles: list[Article]) -> list[Story]:
 
 
 def _sort_key(art: Article, slug: str) -> tuple:
-    """Newest day first; within a day, most relevant first, then newest.
+    """Official items pinned first (newest first); then news.
 
-    Grouping by day keeps today's news at the top of a multi-day window,
-    while still surfacing the most clearly relevant stories within each day.
-    Undated articles sort last.
+    News is ordered newest day first and, within a day, most relevant first,
+    then newest. Grouping by day keeps today's news at the top of a multi-day
+    window while still surfacing the most clearly relevant stories.
+    Undated items sort last within their group.
     """
+    pinned = 0 if art.is_official else 1
     if art.published is None:
-        return (1, 0, 0, 0)
+        return (pinned, 1, 0, 0, 0)
+    ts = art.published.timestamp()
+    if art.is_official:
+        return (pinned, 0, 0, 0, -ts)
     day = art.published.date().toordinal()
-    return (0, -day, -art.departments.get(slug, 0), -art.published.timestamp())
+    return (pinned, 0, -day, -art.departments.get(slug, 0), -ts)
 
 
 def build_sections(articles: list[Article], config: Config) -> list[tuple[str, str, list[Story]]]:
@@ -102,8 +114,12 @@ def _truncate(text: str, limit: int = SUMMARY_CHARS) -> str:
     return text[:limit].rsplit(" ", 1)[0] + "…"
 
 
-def _when(dt: datetime | None) -> str:
-    return dt.astimezone(timezone.utc).strftime("%d %b %H:%M UTC") if dt else "undated"
+def _when(art: Article) -> str:
+    """Display time. Written statements only carry a date, so show just that."""
+    if art.published is None:
+        return "undated"
+    fmt = "%d %b" if art.kind == WRITTEN_STATEMENT else "%d %b %H:%M UTC"
+    return art.published.astimezone(timezone.utc).strftime(fmt)
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +139,8 @@ def render_markdown(articles: list[Article], config: Config, hours: int,
         lines += [f"## {name} ({len(stories)})", ""]
         for s in stories:
             a = s.lead
-            lines.append(f"- **[{a.title}]({a.url})** — {a.outlet}, {_when(a.published)}")
+            pin = f"📌 *{KIND_LABELS[a.kind]}:* " if a.is_official else ""
+            lines.append(f"- {pin}**[{a.title}]({a.url})** — {a.outlet}, {_when(a)}")
             if a.summary:
                 lines.append(f"  {_truncate(a.summary)}")
             if s.others:
@@ -163,6 +180,8 @@ article a.t:hover{text-decoration:underline}
 .sum{margin:6px 0 0;font-size:14px}
 .also{font-size:12px;color:var(--muted);margin-top:6px}
 .also a{color:var(--muted)}
+article.pinned{border-left:4px solid var(--accent)}
+.badge{display:block;font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--accent);margin-bottom:2px}
 .tag{display:inline-block;background:var(--chip);border-radius:4px;padding:0 6px;margin-right:4px;font-size:11px}
 .empty{color:var(--muted);font-style:italic}
 nav a.on{background:var(--accent);color:var(--bg)}nav a.on span{color:var(--bg)}
@@ -214,8 +233,13 @@ def render_html(articles: list[Article], config: Config, hours: int,
             body.append('<p class="empty">Nothing in this window.</p>')
         for s in stories:
             a = s.lead
-            parts = [f'<article><a class="t" href="{esc(a.url)}" target="_blank" rel="noopener">{esc(a.title)}</a>',
-                     f'<div class="src">{esc(a.outlet)} · {_when(a.published)}</div>']
+            if a.is_official:
+                badge = f'<span class="badge">📌 {esc(KIND_LABELS[a.kind])}</span>'
+                parts = [f'<article class="pinned">{badge}']
+            else:
+                parts = ['<article>']
+            parts += [f'<a class="t" href="{esc(a.url)}" target="_blank" rel="noopener">{esc(a.title)}</a>',
+                      f'<div class="src">{esc(a.outlet)} · {_when(a)}</div>']
             if a.summary:
                 parts.append(f'<p class="sum">{esc(_truncate(a.summary))}</p>')
             if s.others:

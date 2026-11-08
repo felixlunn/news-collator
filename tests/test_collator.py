@@ -9,7 +9,11 @@ from news_collator.classify import Classifier, compile_term
 from news_collator.config import load_config
 from news_collator.digest import build_site, group_stories, render_html, render_markdown
 from news_collator.fetch import decompress, parse_date, parse_feed, strip_html
-from news_collator.models import Article, normalise_url
+import json
+import sqlite3
+
+from news_collator.models import GOVUK, WRITTEN_STATEMENT, Article, normalise_url
+from news_collator.official import _body_lookup, _dedupe_bicameral, parse_statements
 from news_collator.store import Store
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -126,6 +130,53 @@ class TestDigestAndStore(unittest.TestCase):
             self.assertIn('href="moj.html" class="on"', moj)
             self.assertIn("Prisons near capacity", moj)
             self.assertNotIn("small boats", moj)
+
+
+class TestOfficial(unittest.TestCase):
+    def setUp(self):
+        payload = json.loads((FIXTURES / "written_statements.json").read_text())
+        self.statements, self.unmatched = parse_statements(payload, _body_lookup(CONFIG.departments))
+
+    def test_statements_filed_by_issuing_department(self):
+        by_title = {a.title: a for a in _dedupe_bicameral(self.statements)}
+        self.assertEqual(set(by_title["Sanctions Designations"].departments), {"fcdo"})  # '&' vs 'and'
+        moj = by_title["Prison Capacity Update"]
+        self.assertEqual(moj.kind, WRITTEN_STATEMENT)
+        self.assertEqual(moj.summary, "Today I am announcing new measures.")
+        self.assertEqual(moj.url, "https://questions-statements.parliament.uk/written-statements/detail/2026-11-05/HCWS101")
+        self.assertEqual(self.unmatched, {"Leader of the House"})
+
+    def test_bicameral_duplicates_keep_commons(self):
+        kept = _dedupe_bicameral(self.statements)
+        prison = [a for a in kept if a.title == "Prison Capacity Update"]
+        self.assertEqual(len(prison), 1)
+        self.assertEqual(prison[0].outlet, "Parliament (Commons)")
+
+    def test_official_items_pinned_and_never_grouped(self):
+        news = Classifier(CONFIG.departments).classify_all(load_fixture_articles())
+        release = Article(url="https://www.gov.uk/government/news/prisons", outlet="GOV.UK", kind=GOVUK,
+                          title="Prisons near capacity as early release scheme extended",  # same headline as news
+                          published=datetime(2026, 11, 1, tzinfo=timezone.utc), departments={"moj": 100})
+        md = render_markdown(news + [release], CONFIG, 24, only="moj")
+        items = [l for l in md.splitlines() if l.startswith("- ")]
+        self.assertTrue(items[0].startswith("- 📌 *GOV.UK:*"))  # pinned despite being oldest
+        self.assertEqual(len(items), 2)  # identical headline not merged into the release
+        html = render_html(news + [release], CONFIG, 24, only="moj")
+        self.assertIn('<article class="pinned">', html)
+
+    def test_old_database_is_migrated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "old.db"
+            conn = sqlite3.connect(db)
+            conn.execute("CREATE TABLE articles (id TEXT PRIMARY KEY, url TEXT NOT NULL, title TEXT NOT NULL,"
+                         " summary TEXT NOT NULL DEFAULT '', outlet TEXT NOT NULL, published TEXT,"
+                         " first_seen TEXT NOT NULL)")
+            conn.commit(); conn.close()
+            with Store(db) as store:
+                a = self.statements[0]
+                a.published = datetime.now(timezone.utc)
+                store.save([a])
+                self.assertEqual(store.recent(hours=1)[0].kind, WRITTEN_STATEMENT)
 
 
 if __name__ == "__main__":

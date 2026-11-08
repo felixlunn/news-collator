@@ -12,6 +12,9 @@ digest for each.
   Sky appears once, with "Also covered by" links.
 - **Cross-cutting stories** — an article can belong to several departments
   (e.g. a Budget story touching NHS and prisons appears under all three).
+- **Official sources pinned** — GOV.UK announcements and written ministerial
+  statements to Parliament are filed under the department that issued them and
+  pinned to the top of that department's list.
 
 ## Quick start
 
@@ -55,6 +58,11 @@ Everything editable lives in `config/`:
   `prison*` matches any ending; ALL-CAPS acronyms like `SEND` or `AI` are
   case-sensitive so they don't catch ordinary words.
 
+- **`official.toml`** — switches GOV.UK announcements and written statements on
+  or off, and maps each department to its GOV.UK organisation slug(s) and the
+  name Parliament uses for it. Run with `-v` to log any written statements from
+  bodies that aren't mapped (e.g. the Leader of the House), which are skipped.
+
 Ministers' names are intentionally not included as they change at reshuffles —
 add them locally if useful.
 
@@ -93,6 +101,7 @@ news_collator/
   models.py          Article type, URL normalisation for de-duplication
   config.py          config loading
   fetch.py           concurrent feed download + RSS/Atom parsing
+  official.py        GOV.UK announcements and Parliament written statements
   classify.py        rule-based department scoring
   store.py           SQLite persistence
   digest.py          story grouping, HTML/Markdown rendering, static site

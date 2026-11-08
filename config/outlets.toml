@@ -70,11 +70,5 @@ feeds = [
   "https://www.politicshome.com/news/rss",
 ]
 
-# Official announcements from GOV.UK (Atom). Disabled by default because these
-# are press releases rather than coverage, but useful alongside the press.
-[[outlet]]
-name = "GOV.UK announcements"
-enabled = false
-feeds = [
-  "https://www.gov.uk/search/news-and-communications.atom",
-]
+# Government announcements and written statements are configured separately
+# in official.toml, so they can be filed by issuing department.

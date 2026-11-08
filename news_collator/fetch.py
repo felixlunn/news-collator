@@ -137,11 +137,14 @@ def decompress(body: bytes) -> bytes:
     return body
 
 
-def download(url: str) -> bytes:
+FEED_ACCEPT = "application/rss+xml, application/atom+xml, application/xml, text/xml"
+
+
+def download(url: str, accept: str = FEED_ACCEPT) -> bytes:
     """GET a URL and return the (decompressed) body. Raises urllib errors on failure."""
     req = urllib.request.Request(url, headers={
         "User-Agent": USER_AGENT,
-        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml",
+        "Accept": accept,
         "Accept-Encoding": "gzip, deflate",
     })
     with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:

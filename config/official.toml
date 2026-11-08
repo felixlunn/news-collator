@@ -1,0 +1,91 @@
+# ---------------------------------------------------------------------------
+# Official sources: GOV.UK announcements and written ministerial statements.
+#
+# Unlike news, these are filed by *who issued them*, not by keyword matching,
+# and are pinned to the top of each department's list.
+#
+# For each department (slugs must match departments.toml):
+#   govuk_orgs        – GOV.UK organisation slugs, as in the URL
+#                       https://www.gov.uk/government/organisations/<slug>
+#   parliament_bodies – the "answering body" name Parliament uses for the
+#                       department in written statements (case and "&"/"and"
+#                       differences are ignored)
+#
+# A department with no entries simply gets no pinned items.
+# ---------------------------------------------------------------------------
+
+[sources]
+govuk = true               # GOV.UK press releases, news stories, speeches, statements
+written_statements = true  # Written ministerial statements to Parliament
+
+[departments.home-office]
+govuk_orgs = ["home-office"]
+parliament_bodies = ["Home Office"]
+
+[departments.moj]
+govuk_orgs = ["ministry-of-justice"]
+parliament_bodies = ["Ministry of Justice"]
+
+[departments.treasury]
+govuk_orgs = ["hm-treasury"]
+parliament_bodies = ["HM Treasury", "Treasury"]
+
+[departments.cabinet-office]
+govuk_orgs = ["cabinet-office", "prime-ministers-office-10-downing-street"]
+parliament_bodies = ["Cabinet Office", "Prime Minister"]
+
+[departments.mod]
+govuk_orgs = ["ministry-of-defence"]
+parliament_bodies = ["Ministry of Defence"]
+
+[departments.fcdo]
+govuk_orgs = ["foreign-commonwealth-development-office"]
+parliament_bodies = ["Foreign, Commonwealth and Development Office", "Foreign, Commonwealth & Development Office"]
+
+[departments.dhsc]
+govuk_orgs = ["department-of-health-and-social-care"]
+parliament_bodies = ["Department of Health and Social Care"]
+
+[departments.dfe]
+govuk_orgs = ["department-for-education"]
+parliament_bodies = ["Department for Education"]
+
+[departments.dwp]
+govuk_orgs = ["department-for-work-pensions"]
+parliament_bodies = ["Department for Work and Pensions"]
+
+[departments.desnz]
+govuk_orgs = ["department-for-energy-security-and-net-zero"]
+parliament_bodies = ["Department for Energy Security and Net Zero"]
+
+[departments.dbt]
+govuk_orgs = ["department-for-business-and-trade"]
+parliament_bodies = ["Department for Business and Trade"]
+
+[departments.dsit]
+govuk_orgs = ["department-for-science-innovation-and-technology"]
+parliament_bodies = ["Department for Science, Innovation and Technology"]
+
+[departments.dcms]
+govuk_orgs = ["department-for-culture-media-and-sport"]
+parliament_bodies = ["Department for Culture, Media and Sport"]
+
+[departments.defra]
+govuk_orgs = ["department-for-environment-food-rural-affairs"]
+parliament_bodies = ["Department for Environment, Food and Rural Affairs"]
+
+[departments.mhclg]
+govuk_orgs = ["ministry-of-housing-communities-local-government"]
+parliament_bodies = ["Ministry of Housing, Communities and Local Government"]
+
+[departments.dft]
+govuk_orgs = ["department-for-transport"]
+parliament_bodies = ["Department for Transport"]
+
+[departments.territorial]
+govuk_orgs = ["northern-ireland-office", "office-of-the-secretary-of-state-for-scotland", "office-of-the-secretary-of-state-for-wales"]
+parliament_bodies = ["Northern Ireland Office", "Scotland Office", "Wales Office"]
+
+[departments.ago]
+govuk_orgs = ["attorney-generals-office"]
+parliament_bodies = ["Attorney General", "Attorney General's Office", "Solicitor General"]

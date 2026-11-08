@@ -1,7 +1,7 @@
 """Command-line interface.
 
     python -m news_collator run                    # fetch, classify, store, write digest
-    python -m news_collator fetch                  # fetch + store only (e.g. from cron)
+    python -m news_collator fetch                  # fetch news + official sources, store
     python -m news_collator digest --dept moj      # render from what's stored
     python -m news_collator site                   # build the static website
     python -m news_collator explain "headline …"   # debug why text maps where it does
@@ -21,6 +21,7 @@ from .config import DEFAULT_CONFIG_DIR, Config, UnknownDepartmentError, load_con
 from .digest import build_site, render_html, render_markdown
 from .fetch import fetch_all, fetch_feed
 from .models import Article
+from .official import fetch_official
 from .store import Store
 
 DEFAULT_DB = Path("data/news.sqlite3")
@@ -33,17 +34,22 @@ DEFAULT_HOURS = 72  # look-back window; covers a full weekend on Monday mornings
 # ---------------------------------------------------------------------------
 
 def cmd_fetch(args: argparse.Namespace, config: Config) -> int:
-    """Fetch all feeds, classify, and store. Returns process exit code."""
+    """Fetch news and official sources, classify news, and store. Returns exit code."""
     articles, errors = fetch_all(config.outlets)
     relevant = Classifier(config.departments, args.threshold).classify_all(articles)
 
+    # Official items arrive already filed under their issuing department.
+    official, official_errors = fetch_official(config, args.official_hours)
+    errors |= official_errors
+
     args.db.parent.mkdir(parents=True, exist_ok=True)
     with Store(args.db) as store:
-        new = store.save(relevant)
+        new = store.save(relevant + official)
         if args.prune_days:
             store.prune(args.prune_days)
 
-    print(f"Fetched {len(articles)} articles; {len(relevant)} matched a department; {new} new.")
+    print(f"Fetched {len(articles)} news articles ({len(relevant)} matched a department) "
+          f"and {len(official)} official items; {new} new.")
     if errors:
         print(f"{len(errors)} feed(s) failed (run `check-feeds` for detail).", file=sys.stderr)
     # Only treat it as a failure if *nothing* came back.
@@ -133,10 +139,13 @@ def build_parser() -> argparse.ArgumentParser:
     fetch = sub.add_parser("fetch", help="fetch, classify and store articles")
     fetch.add_argument("--prune-days", type=int, default=30,
                        help="delete stored articles older than this (0 = keep forever)")
+    fetch.add_argument("--official-hours", type=int, default=DEFAULT_HOURS,
+                       help="how far back to request written statements (default %(default)s)")
 
     digest = sub.add_parser("digest", help="render a digest from stored articles")
     run = sub.add_parser("run", help="fetch then digest")
     run.add_argument("--prune-days", type=int, default=30)
+    run.add_argument("--official-hours", type=int, default=DEFAULT_HOURS)
     for sp in (digest, run):
         sp.add_argument("--dept", help="only this department (see `departments`)")
         sp.add_argument("--hours", type=int, default=DEFAULT_HOURS,

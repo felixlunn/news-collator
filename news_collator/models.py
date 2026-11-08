@@ -27,17 +27,30 @@ def normalise_url(url: str) -> str:
     return urlunsplit(("https", parts.netloc.lower(), path, urlencode(query), ""))
 
 
+# Article kinds. Anything other than NEWS is an official source, filed by the
+# issuing department and pinned to the top of that department's list.
+NEWS = "news"
+GOVUK = "govuk"                          # GOV.UK announcement (press release, speech, …)
+WRITTEN_STATEMENT = "written_statement"  # written ministerial statement to Parliament
+KIND_LABELS = {GOVUK: "GOV.UK", WRITTEN_STATEMENT: "Written statement"}
+
+
 @dataclass
 class Article:
-    """A single news item pulled from a feed."""
+    """A single item: a news article or an official publication."""
 
     url: str
     title: str
     outlet: str
     summary: str = ""
     published: datetime | None = None  # always timezone-aware (UTC) when set
+    kind: str = NEWS
     # Filled in by the classifier: department slug -> relevance score.
     departments: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def is_official(self) -> bool:
+        return self.kind != NEWS
 
     @property
     def id(self) -> str:

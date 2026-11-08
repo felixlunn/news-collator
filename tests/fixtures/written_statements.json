@@ -1,0 +1,17 @@
+{
+  "totalResults": 4,
+  "results": [
+    {"value": {"id": 1, "uin": "HCWS101", "dateMade": "2026-11-05T00:00:00", "house": "Commons",
+               "answeringBodyId": 1, "answeringBodyName": "Ministry of Justice",
+               "title": "Prison Capacity Update", "text": "<p>Today I am announcing <b>new</b> measures.</p>"}, "links": []},
+    {"value": {"id": 2, "uin": "HLWS99", "dateMade": "2026-11-05T00:00:00", "house": "Lords",
+               "answeringBodyId": 1, "answeringBodyName": "Ministry of Justice",
+               "title": "Prison Capacity Update", "text": "<p>Repeated in the Lords.</p>"}, "links": []},
+    {"value": {"id": 3, "uin": "HCWS102", "dateMade": "2026-11-05T00:00:00", "house": "Commons",
+               "answeringBodyId": 2, "answeringBodyName": "Foreign, Commonwealth & Development Office",
+               "title": "Sanctions Designations", "text": "Text."}, "links": []},
+    {"value": {"id": 4, "uin": "HCWS103", "dateMade": "2026-11-05T00:00:00", "house": "Commons",
+               "answeringBodyId": 3, "answeringBodyName": "Leader of the House",
+               "title": "Business of the House", "text": "Text."}, "links": []}
+  ]
+}

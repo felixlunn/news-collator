@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS articles (
     summary     TEXT NOT NULL DEFAULT '',
     outlet      TEXT NOT NULL,
     published   TEXT,                      -- ISO 8601 UTC, may be NULL
-    first_seen  TEXT NOT NULL              -- ISO 8601 UTC, when we first fetched it
+    first_seen  TEXT NOT NULL,             -- ISO 8601 UTC, when we first fetched it
+    kind        TEXT NOT NULL DEFAULT 'news'  -- news | govuk | written_statement
 );
 CREATE TABLE IF NOT EXISTS article_departments (
     article_id  TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
@@ -34,6 +35,14 @@ class Store:
         self.conn = sqlite3.connect(path)
         self.conn.execute("PRAGMA foreign_keys = ON")
         self.conn.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Bring databases created by older versions up to the current schema."""
+        columns = {row[1] for row in self.conn.execute("PRAGMA table_info(articles)")}
+        if "kind" not in columns:
+            self.conn.execute("ALTER TABLE articles ADD COLUMN kind TEXT NOT NULL DEFAULT 'news'")
+            self.conn.commit()
 
     def close(self) -> None:
         self.conn.close()
@@ -56,10 +65,10 @@ class Store:
         with self.conn:  # single transaction
             for art in articles:
                 cur = self.conn.execute(
-                    "INSERT OR IGNORE INTO articles (id, url, title, summary, outlet, published, first_seen)"
-                    " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT OR IGNORE INTO articles (id, url, title, summary, outlet, published, first_seen, kind)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     (art.id, art.url, art.title, art.summary, art.outlet,
-                     art.published.isoformat() if art.published else None, now),
+                     art.published.isoformat() if art.published else None, now, art.kind),
                 )
                 new += cur.rowcount
                 self.conn.execute("DELETE FROM article_departments WHERE article_id = ?", (art.id,))
@@ -76,7 +85,7 @@ class Store:
         """
         since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
         sql = """
-            SELECT a.id, a.url, a.title, a.summary, a.outlet, a.published,
+            SELECT a.id, a.url, a.title, a.summary, a.outlet, a.published, a.kind,
                    ad.department, ad.score
             FROM articles a
             JOIN article_departments ad ON ad.article_id = a.id
@@ -89,12 +98,13 @@ class Store:
         sql += " ORDER BY COALESCE(a.published, a.first_seen) DESC"
 
         by_id: dict[str, Article] = {}
-        for _id, url, title, summary, outlet, published, dept, score in self.conn.execute(sql, params):
+        for _id, url, title, summary, outlet, published, kind, dept, score in self.conn.execute(sql, params):
             art = by_id.get(_id)
             if art is None:
                 art = by_id[_id] = Article(
                     url=url, title=title, outlet=outlet, summary=summary,
                     published=datetime.fromisoformat(published) if published else None,
+                    kind=kind,
                 )
             art.departments[dept] = score
         return list(by_id.values())
