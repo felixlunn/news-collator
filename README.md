@@ -68,11 +68,12 @@ add them locally if useful.
 
 ## Website
 
-The digests are published as a website on GitHub Pages, rebuilt around 06:00,
+The digests are published as a website, **Despatch**, on GitHub Pages, rebuilt around 06:00,
 12:00 and 17:00 UTC every weekday by `.github/workflows/digest.yml`, showing
 the last 72 hours (so Monday mornings cover the weekend):
 
-- **Homepage** (`index.html`): every department on one page.
+- **Homepage** (`index.html`): the most reported stories across all outlets, and
+  a table of each department's coverage per day, shaded by volume.
 - **Department pages** (`departments/<slug>.html`): one per research team, for
   bookmarking, e.g. `departments/moj.html` or `departments/home-office.html`.
 
@@ -104,7 +105,8 @@ news_collator/
   official.py        GOV.UK announcements and Parliament written statements
   classify.py        rule-based department scoring
   store.py           SQLite persistence
-  digest.py          story grouping, HTML/Markdown rendering, static site
+  digest.py          story grouping and ordering, Markdown digest
+  web.py             website and HTML digest (design notes at the top)
   cli.py             command-line interface
 tests/               unit tests and fixture feeds
 ```

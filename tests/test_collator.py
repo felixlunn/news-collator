@@ -7,7 +7,8 @@ from pathlib import Path
 
 from news_collator.classify import Classifier, compile_term
 from news_collator.config import load_config
-from news_collator.digest import build_site, group_stories, render_html, render_markdown
+from news_collator.digest import group_stories, render_markdown
+from news_collator.web import build_site, render_html
 from news_collator.fetch import decompress, parse_date, parse_feed, strip_html
 import json
 import sqlite3
@@ -110,7 +111,7 @@ class TestDigestAndStore(unittest.TestCase):
             self.assertTrue(all("moj" in a.departments for a in only_moj))
 
         html = render_html(arts, CONFIG, 24)
-        self.assertIn("also reported by", html)
+        self.assertIn("; also <a", html)  # cross-outlet grouping shown
         self.assertIn('id="home-office"', html)
         md = render_markdown(arts, CONFIG, 24, only="moj")
         self.assertIn("## Ministry of Justice", md)

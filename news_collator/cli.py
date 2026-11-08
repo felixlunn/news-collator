@@ -18,7 +18,8 @@ from pathlib import Path
 
 from .classify import DEFAULT_THRESHOLD, Classifier
 from .config import DEFAULT_CONFIG_DIR, Config, UnknownDepartmentError, load_config
-from .digest import build_site, render_html, render_markdown
+from .digest import render_markdown
+from .web import build_site, render_html
 from .fetch import fetch_all, fetch_feed
 from .models import Article
 from .official import fetch_official
