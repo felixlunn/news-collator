@@ -144,16 +144,26 @@ def cmd_explain(args: argparse.Namespace, config: Config) -> int:
 
 
 def cmd_check_feeds(args: argparse.Namespace, config: Config) -> int:
-    """Hit every feed and report item counts or errors."""
+    """Test feeds and report item counts, newest item, errors and staleness.
+
+    With --url, test those addresses instead of the configured outlets, e.g. to
+    vet a new outlet before adding it to outlets.toml.
+    """
+    if args.url:
+        jobs = [(url, "candidate") for url in args.url]
+    else:
+        for outlet in config.outlets:
+            if not outlet.enabled:
+                print(f"-- {outlet.name}: disabled")
+        jobs = [(url, o.name) for o in config.outlets if o.enabled for url in o.feeds]
+
     failures = 0
-    for outlet in config.outlets:
-        if not outlet.enabled:
-            print(f"-- {outlet.name}: disabled")
-            continue
-        for url in outlet.feeds:
-            _, items, err = fetch_feed(url, outlet.name)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for (url, items, err), (_, name) in zip(pool.map(lambda j: fetch_feed(*j), jobs), jobs):
             failures += bool(err)
-            print(f"{'FAIL' if err else ' ok '}  {outlet.name:18} {len(items):4} items  {url}"
+            dated = [a.published for a in items if a.published]
+            newest = f"newest {max(dated):%d %b %H:%M}" if dated else "no dates"
+            print(f"{'FAIL' if err else ' ok '}  {name:18} {len(items):4} items  {newest:18}  {url}"
                   + (f"\n      {err}" if err else ""))
     return 1 if failures else 0
 
@@ -265,7 +275,8 @@ def build_parser() -> argparse.ArgumentParser:
     audit = sub.add_parser("audit", help="write a CSV of every article and how it was classified")
     audit.add_argument("--out", type=Path, default=Path("output/audit.csv"))
 
-    sub.add_parser("check-feeds", help="test every configured feed")
+    check = sub.add_parser("check-feeds", help="test every configured feed (or --url ones)")
+    check.add_argument("--url", nargs="+", help="test these feed addresses instead of the configured ones")
     sub.add_parser("departments", help="list department slugs")
     sub.add_parser("tags", help="list team tags and their media searches")
     return p

@@ -1,0 +1,32 @@
+# Manually test news feeds: every configured feed, or a list of candidate
+# addresses (to vet a new outlet before adding it to config/outlets.toml).
+# Run it from Actions -> Check feeds -> Run workflow.
+name: Check feeds
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "Feed addresses to test, separated by spaces (leave empty to test all configured feeds)"
+        required: false
+        default: ""
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test feeds
+        env:
+          URLS: ${{ inputs.urls }}
+        run: |
+          set -f  # addresses contain "?"; don't treat it as a filename wildcard
+          if [ -n "$URLS" ]; then
+            # Word-splitting of $URLS is intended: one argument per address.
+            python -m news_collator check-feeds --url $URLS || true
+          else
+            python -m news_collator check-feeds || true
+          fi
