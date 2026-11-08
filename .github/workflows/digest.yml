@@ -36,12 +36,22 @@ jobs:
       - name: Run tests
         run: python -m unittest discover tests
 
+      # Keep the article database between runs, so articles that have dropped
+      # off a feed stay on the site for the full 72-hour window. Each run saves
+      # a new cache entry and restores the most recent one.
+      - name: Restore article database
+        uses: actions/cache@v4
+        with:
+          path: data/news.sqlite3
+          key: news-db-${{ github.run_id }}
+          restore-keys: news-db-
+
       # -v logs any feed that fails, so broken URLs show up in the run log.
       - name: Fetch and classify articles
-        run: python -m news_collator -v fetch
+        run: python -m news_collator -v fetch --prune-days 14
 
       - name: Build website
-        run: python -m news_collator site --hours 24 --out site
+        run: python -m news_collator site --hours 72 --out site
 
       - uses: actions/upload-pages-artifact@v3
         with:

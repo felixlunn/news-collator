@@ -25,6 +25,7 @@ from .store import Store
 
 DEFAULT_DB = Path("data/news.sqlite3")
 DEFAULT_OUT = Path("output")
+DEFAULT_HOURS = 72  # look-back window; covers a full weekend on Monday mornings
 
 
 # ---------------------------------------------------------------------------
@@ -138,12 +139,14 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--prune-days", type=int, default=30)
     for sp in (digest, run):
         sp.add_argument("--dept", help="only this department (see `departments`)")
-        sp.add_argument("--hours", type=int, default=24, help="look-back window (default 24)")
+        sp.add_argument("--hours", type=int, default=DEFAULT_HOURS,
+                        help=f"look-back window in hours (default {DEFAULT_HOURS})")
         sp.add_argument("--format", choices=("html", "md"), default="html")
         sp.add_argument("--out", type=Path, default=DEFAULT_OUT, help="output directory")
 
     site = sub.add_parser("site", help="build the static website (homepage + a page per department)")
-    site.add_argument("--hours", type=int, default=24, help="look-back window (default 24)")
+    site.add_argument("--hours", type=int, default=DEFAULT_HOURS,
+                      help=f"look-back window in hours (default {DEFAULT_HOURS})")
     site.add_argument("--out", type=Path, default=Path("site"), help="output directory (default site/)")
 
     explain = sub.add_parser("explain", help="show how a headline would be classified")

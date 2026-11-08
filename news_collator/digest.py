@@ -70,9 +70,16 @@ def group_stories(articles: list[Article]) -> list[Story]:
 
 
 def _sort_key(art: Article, slug: str) -> tuple:
-    """Most relevant first, then newest."""
-    ts = art.published.timestamp() if art.published else 0
-    return (-art.departments.get(slug, 0), -ts)
+    """Newest day first; within a day, most relevant first, then newest.
+
+    Grouping by day keeps today's news at the top of a multi-day window,
+    while still surfacing the most clearly relevant stories within each day.
+    Undated articles sort last.
+    """
+    if art.published is None:
+        return (1, 0, 0, 0)
+    day = art.published.date().toordinal()
+    return (0, -day, -art.departments.get(slug, 0), -art.published.timestamp())
 
 
 def build_sections(articles: list[Article], config: Config) -> list[tuple[str, str, list[Story]]]:

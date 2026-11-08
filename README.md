@@ -19,7 +19,7 @@ digest for each.
 python -m news_collator run                  # fetch everything, write output/digest-all.html
 python -m news_collator run --dept moj       # Ministry of Justice only
 python -m news_collator digest --format md   # Markdown, for email / briefing docs
-python -m news_collator digest --hours 72    # wider look-back window
+python -m news_collator digest --hours 24    # narrower window (default 72 hours)
 ```
 
 Articles are stored in `data/news.sqlite3`, so running `fetch` regularly (e.g.
@@ -61,7 +61,8 @@ add them locally if useful.
 ## Website
 
 The digests are published as a website on GitHub Pages, rebuilt around 06:00,
-12:00 and 17:00 UTC every weekday by `.github/workflows/digest.yml`:
+12:00 and 17:00 UTC every weekday by `.github/workflows/digest.yml`, showing
+the last 72 hours (so Monday mornings cover the weekend):
 
 - **Homepage** (`index.html`): every department on one page.
 - **Department pages** (`departments/<slug>.html`): one per research team, for
@@ -72,8 +73,9 @@ One-off setup: in the repo go to **Settings → Pages** and set **Source** to
 **Publish digest site → Run workflow**.
 
 To build the site locally: `python -m news_collator fetch && python -m news_collator site`
-(writes to `site/`). Each scheduled run starts fresh from the current feeds, so
-the site shows a rolling 24-hour window rather than an archive.
+(writes to `site/`). The workflow keeps the article database between runs
+(via the Actions cache, pruned after 14 days), so stories stay on the site for
+the whole 72 hours even after they drop off an outlet's feed.
 
 ## Tests
 
