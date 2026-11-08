@@ -15,3 +15,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["news_collator"]
+
+[tool.setuptools.package-data]
+news_collator = ["static/*"]

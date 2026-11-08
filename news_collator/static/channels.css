@@ -1,0 +1,53 @@
+/* Channels page: the switcher, channel header, editor form and buttons.
+   Colours and type come from the site tokens defined in web.py. */
+
+/* Saved channels, as a row of tabs */
+.chan-switch{display:flex;flex-wrap:wrap;gap:4px 18px;margin:0 0 26px;padding-bottom:10px;border-bottom:1px solid var(--rule)}
+.chan-switch a{font-size:15px;text-decoration:none;color:var(--muted);padding:4px 0;border-bottom:2px solid transparent}
+.chan-switch a:hover{color:var(--ink)}
+.chan-switch a[aria-current]{color:var(--ink);font-weight:650;border-bottom-color:var(--accent)}
+.chan-switch .chan-new{color:var(--accent);font-weight:600}
+
+.chan-sources{margin:12px 0 0;font-size:14px;line-height:1.6;color:var(--muted)}
+.chan-sources b{font-weight:600;color:var(--ink);margin-right:4px}
+.chan-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:20px 0 8px}
+.chan-status{font-size:14px;color:var(--accent)}
+.chan-banner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 16px;margin:0 0 24px;background:var(--panel);border-left:3px solid var(--accent)}
+.chan-banner p{margin:0;font-size:15px}
+
+/* Buttons */
+.btn{display:inline-block;font:inherit;font-size:14px;font-weight:600;line-height:1;padding:10px 14px;cursor:pointer;
+  color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:3px;text-decoration:none}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--masthead);border-color:var(--masthead)}
+.btn.danger{color:#b3261e;margin-left:auto}
+.btn.small{padding:6px 10px;font-size:13px;font-weight:500}
+
+/* Editor */
+.editor{margin-top:24px;max-width:680px}
+.editor fieldset{border:0;border-top:2px solid var(--ink);margin:28px 0 0;padding:10px 0 0}
+.editor legend{font-size:17px;font-weight:750;font-stretch:85%;padding:0;margin-bottom:6px;float:left;width:100%}
+.field{display:block;margin:12px 0 0}
+.field span{display:block;font-size:14px;font-weight:600;margin-bottom:5px}
+.field i{font-weight:400;color:var(--faint);font-style:normal}
+.field input{width:100%;padding:9px 10px;font:inherit;font-size:15px;color:var(--ink);background:var(--paper);
+  border:1px solid var(--rule);border-radius:3px}
+.field input:focus{border-color:var(--accent)}
+.checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 18px;clear:both}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:15px;padding:5px 0;cursor:pointer}
+.check input{margin-top:3px;accent-color:var(--accent)}
+.hint{font-size:14px;color:var(--muted);margin:8px 0 0;clear:both}
+.mine{list-style:none;margin:10px 0 0;padding:0}
+.mine li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--rule);font-size:14px}
+.mine b{font-weight:650;margin-right:6px}
+.mine i{color:var(--faint)}
+.mine-add{margin-top:6px}
+.mine-add .btn{margin-top:12px}
+.form-error{color:#b3261e;font-size:14px;font-weight:600;min-height:1em;margin:18px 0 0}
+
+@media (max-width:900px){
+  .checks{grid-template-columns:1fr}
+  .btn.danger{margin-left:0}
+}

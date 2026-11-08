@@ -1,4 +1,4 @@
-"""The Despatch website: HTML rendering for the homepage and department pages.
+"""The Despatch website: homepage, department and tag pages, channels and open data.
 
 Design notes
 ------------
@@ -12,18 +12,23 @@ Design notes
     2. Department overview – a table of item counts per day, shaded by volume.
 - Department pages are a log: official items pinned first, then news grouped
   by day with the time in a left-hand column, under a three-day tally.
+- Team tag pages use the same layout. The Channels page is a small browser
+  app (static/channels.js) that combines departments, team tags and the
+  reader's own tags, saved in their browser and shareable by link.
 """
 
 from __future__ import annotations
 
 import html
+import json
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from .config import Config
-from .digest import LOCAL_TZ, Story, _truncate, build_sections
-from .models import WRITTEN_STATEMENT, Article
+from .digest import LOCAL_TZ, Story, _sort_key, _truncate, build_sections, group_stories
+from .models import SEARCH, WRITTEN_STATEMENT, Article
+from .tags import Tag, TagMatcher
 
 SITE_NAME = "Despatch"
 SITE_TAGLINE = "UK policy news by government department"
@@ -72,6 +77,9 @@ a{color:inherit}
 .tagline{font-size:14px;color:rgba(255,255,255,.72);margin-right:auto;padding-left:20px;
   border-left:1px solid rgba(255,255,255,.25);line-height:1.3}
 .updated{font-size:14px;color:rgba(255,255,255,.85);white-space:nowrap}
+.mast-link{font-size:14px;font-weight:600;color:#fff;text-decoration:none;white-space:nowrap;
+  padding:6px 0;border-bottom:1px solid rgba(255,255,255,.45)}
+.mast-link:hover{border-bottom-color:#fff}
 .filter{width:220px;padding:7px 10px;font:inherit;font-size:14px;color:#fff;
   background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.3);border-radius:3px}
 .filter::placeholder{color:rgba(255,255,255,.65)}
@@ -96,12 +104,16 @@ main{padding:36px 0 72px;min-width:0}
 .depts a[aria-current]{color:var(--ink);font-weight:600;border-left-color:var(--accent)}
 .depts a.none{color:var(--faint)}
 .depts .n{color:var(--faint);font-weight:400}
-.depts .home{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--rule)}
+.depts ul.home{margin-bottom:6px}
+.nav-head{font-size:12px;font-weight:600;color:var(--faint);margin:18px 0 4px;padding-top:12px;border-top:1px solid var(--rule)}
 .dept-select{display:none}
 
 /* Headings */
 .page-title{font-size:44px;line-height:1.02;font-weight:800;font-stretch:78%;letter-spacing:-.015em;margin:0}
 .page-sub{color:var(--muted);margin:10px 0 0;font-size:15px}
+.page-sub a{color:inherit}
+.terms{color:var(--faint);margin:4px 0 0;font-size:13px}
+.block-head p a{color:var(--muted)}
 .block{margin-top:44px}
 .block-head{border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:4px}
 .block-head h2{font-size:22px;line-height:1.2;font-weight:750;font-stretch:85%;margin:0}
@@ -166,6 +178,7 @@ footer{color:var(--faint);font-size:13px;line-height:1.55;border-top:1px solid v
   .tagline{display:none}
   .mast-inner{height:auto;min-height:60px;flex-wrap:wrap;gap:6px 16px;padding:12px 16px}
   .wordmark{font-size:26px;margin-right:auto}
+  .updated{order:3;flex-basis:100%;font-size:13px}
   .filter{width:100%;order:3;margin-bottom:2px}
   .wrap{padding:0 16px}
   .frame{display:block}
@@ -295,28 +308,35 @@ def _row(story: Story, gutter: str, *, summary: bool, filed: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 class _Links:
-    """Where links point: between pages on the website, or to anchors in a
-    single-file digest."""
+    """Where links point. On the website, pages live at the root (index.html,
+    channels.html) or one folder down (departments/, tags/), so links depend on
+    `depth`. In a single-file digest they point to anchors on the page."""
 
-    def __init__(self, site: bool, on_dept_page: bool):
+    def __init__(self, site: bool, depth: int = 0):
+        self.site = site
+        up = "../" * depth
         if site:
-            self.home = "../index.html" if on_dept_page else "index.html"
-            self._prefix = "" if on_dept_page else "departments/"
-            self._suffix = ".html"
+            self.home, self.channels = f"{up}index.html", f"{up}channels.html"
+            self._dept, self._tag = f"{up}departments/{{}}.html", f"{up}tags/{{}}.html"
         else:
-            self.home, self._prefix, self._suffix = "#top", "#", ""
+            self.home, self.channels = "#top", ""
+            self._dept, self._tag = "#{}", "#tag-{}"
 
     def dept(self, slug: str) -> str:
-        return f"{self._prefix}{slug}{self._suffix}"
+        return self._dept.format(slug)
+
+    def tag(self, slug: str) -> str:
+        return self._tag.format(slug)
 
 
 def _masthead(links: _Links, updated: str, with_filter: bool) -> str:
     filt = ('<input id="filter" class="filter" type="search" placeholder="Filter headlines" '
             'aria-label="Filter headlines">') if with_filter else ""
+    chan = f'<a class="mast-link" href="{links.channels}">Your channels</a>' if links.channels else ""
     return (f'<header class="mast"><div class="mast-inner">'
             f'<a class="wordmark" href="{links.home}">{SITE_NAME}</a>'
             f'<span class="tagline">{esc(SITE_TAGLINE)}</span>'
-            f'<span class="updated">{esc(updated)}</span>{filt}</div></header>')
+            f'<span class="updated">{esc(updated)}</span>{chan}{filt}</div></header>')
 
 
 def _most_reported(sections, names: dict[str, str], links: _Links) -> str:
@@ -328,8 +348,8 @@ def _most_reported(sections, names: dict[str, str], links: _Links) -> str:
                 continue
             entry = seen.setdefault(s.lead.id, (s, []))
             entry[1].append(slug)
-    ranked = sorted(seen.values(), key=lambda e: (-len(e[0].outlets),
-                                                  -(e[0].lead.published or datetime.min.replace(tzinfo=timezone.utc)).timestamp()))
+    epoch = datetime.min.replace(tzinfo=timezone.utc)
+    ranked = sorted(seen.values(), key=lambda e: (-len(e[0].outlets), -(e[0].lead.published or epoch).timestamp()))
     if not ranked:
         return ""
     rows = []
@@ -346,12 +366,15 @@ def _no_multi_outlet() -> str:
             '<p class="empty">No story has been carried by more than one outlet yet.</p></section>')
 
 
-def _overview(sections, links: _Links, today: date) -> str:
-    """Department table: official count, then items per day, shaded by volume."""
+def _overview(rows, href, today: date, heading: str, sub: str, first_col: str) -> str:
+    """Table of item counts: official, then per day, shaded by volume.
+
+    `rows` is [(slug, name, stories)]; `href(slug)` gives each row's link.
+    """
     days = [today - timedelta(days=i) for i in range(3)]
     counts: dict[str, Counter] = {}
     has_earlier = False
-    for slug, _, stories in sections:
+    for slug, _, stories in rows:
         c = Counter()
         for s in stories:
             if s.lead.is_official:
@@ -378,26 +401,28 @@ def _overview(sections, links: _Links, today: date) -> str:
 
     head = "".join(f'<th class="num" scope="col">{label(col)}</th>' for col in columns)
     body = []
-    for slug, name, _ in sections:
-        c, href = counts[slug], links.dept(slug)
+    for slug, name, _ in rows:
+        c, link = counts[slug], href(slug)
         cells = [f'<td class="official{" zero" if not c["official"] else ""}">'
-                 f'<a href="{href}" tabindex="-1">{c["official"] or "–"}</a></td>']
+                 f'<a href="{link}" tabindex="-1">{c["official"] or "–"}</a></td>']
         for col in columns:
             n = c[col]
-            cls = shade(n) or "zero"
-            cells.append(f'<td class="{"zero" if not n else ""}"><a class="{cls}" href="{href}" tabindex="-1">'
-                         f'{n if n else "–"}</a></td>')
-        body.append(f'<tr><th scope="row"><a href="{href}">{esc(name)}</a></th>{"".join(cells)}</tr>')
-    return (f'<section class="block"><div class="block-head"><h2>By department</h2>'
-            f'<p>Items per day, darker where coverage is heaviest</p></div>'
-            f'<table class="overview"><thead><tr><th scope="col">Department</th>'
+            cells.append(f'<td class="{"zero" if not n else ""}"><a class="{shade(n) or "zero"}" href="{link}" '
+                         f'tabindex="-1">{n if n else "–"}</a></td>')
+        body.append(f'<tr><th scope="row"><a href="{link}">{esc(name)}</a></th>{"".join(cells)}</tr>')
+    return (f'<section class="block"><div class="block-head"><h2>{esc(heading)}</h2><p>{sub}</p></div>'
+            f'<table class="overview"><thead><tr><th scope="col">{esc(first_col)}</th>'
             f'<th class="num" scope="col"><span class="full">Official</span>'
             f'<span class="short" aria-hidden="true">Off.</span></th>{head}</tr></thead>'
             f'<tbody>{"".join(body)}</tbody></table></section>')
 
 
-def _department_groups(slug: str, stories: list[Story], names: dict[str, str], today: date) -> str:
-    """Official group first, then news grouped by day (stories arrive newest first)."""
+def _groups(slug: str, stories: list[Story], names: dict[str, str], today: date) -> str:
+    """Official group first, then news grouped by day (stories arrive newest first).
+
+    `slug` is the page's own department or tag; other departments an item is
+    filed under are listed beneath it.
+    """
     official = [s for s in stories if s.lead.is_official]
     news = [s for s in stories if not s.lead.is_official]
 
@@ -434,115 +459,247 @@ def _tally(stories: list[Story], today: date) -> str:
     return f'<dl class="tally" aria-label="News items per day">{cells}</dl>'
 
 
-def _sidebar(sections, links: _Links, only: str | None) -> tuple[str, str]:
-    """Desktop department list and the equivalent phone dropdown."""
-    side = [f'<li class="home"><a href="{links.home}">Overview</a></li>']
-    options = [f'<option value="{links.home}">Overview</option>']
-    for slug, name, stories in sections:
-        attrs = ' aria-current="page"' if slug == only else ""
-        if not stories:
+def _sidebar(sections, tag_sections, links: _Links, current: str = "") -> tuple[str, str]:
+    """Desktop navigation and the equivalent phone dropdown.
+
+    `current` is "dept:<slug>", "tag:<slug>" or "channels".
+    """
+    def entry(href: str, name: str, count: int | None, key: str) -> tuple[str, str]:
+        attrs = ' aria-current="page"' if key == current else ""
+        if count == 0:
             attrs += ' class="none"'
-        side.append(f'<li><a href="{links.dept(slug)}"{attrs}><span>{esc(name)}</span>'
-                    f'<span class="n">{len(stories)}</span></a></li>')
-        sel = " selected" if slug == only else ""
-        options.append(f'<option value="{links.dept(slug)}"{sel}>{esc(name)} ({len(stories)})</option>')
-    nav = f'<nav class="depts" aria-label="Departments"><ul>{"".join(side)}</ul></nav>'
-    select = (f'<select id="dept-select" class="dept-select" aria-label="Choose a department">'
-              f'{"".join(options)}</select>')
+        n = f'<span class="n">{count}</span>' if count is not None else ""
+        sel = " selected" if key == current else ""
+        label = f"{esc(name)} ({count})" if count is not None else esc(name)
+        return (f'<li><a href="{href}"{attrs}><span>{esc(name)}</span>{n}</a></li>',
+                f'<option value="{href}"{sel}>{label}</option>')
+
+    top = [entry(links.home, "Overview", None, "home")]
+    if links.channels:
+        top.append(entry(links.channels, "Your channels", None, "channels"))
+    depts = [entry(links.dept(slug), name, len(st), f"dept:{slug}") for slug, name, st in sections]
+    tags = [entry(links.tag(slug), name, len(st), f"tag:{slug}") for slug, name, st in tag_sections]
+
+    nav = (f'<nav class="depts" aria-label="Departments and tags"><ul class="home">{"".join(e[0] for e in top)}</ul>'
+           f'<h2 class="nav-head">Departments</h2><ul>{"".join(e[0] for e in depts)}</ul>')
+    if tags:
+        nav += f'<h2 class="nav-head">Tags</h2><ul>{"".join(e[0] for e in tags)}</ul>'
+    nav += "</nav>"
+    options = "".join(e[1] for e in top) + \
+        f'<optgroup label="Departments">{"".join(e[1] for e in depts)}</optgroup>' + \
+        (f'<optgroup label="Tags">{"".join(e[1] for e in tags)}</optgroup>' if tags else "")
+    select = f'<select id="dept-select" class="dept-select" aria-label="Go to a page">{options}</select>'
     return nav, select
 
 
 def _footer(config: Config) -> str:
-    outlets = ", ".join(o.name for o in config.outlets if o.enabled)
+    outlets = ", ".join(dict.fromkeys(o.name for o in config.outlets if o.enabled))  # unique, in order
     official = [label for on, label in ((config.official.govuk, "GOV.UK"),
                                         (config.official.written_statements, "UK Parliament written statements"))
                 if on]
     sources = outlets + (f"; and official sources: {', '.join(official)}" if official else "")
     return (f'<footer>Times are UK time. News is matched to departments automatically by keyword; '
-            f'official items are filed under the department that issued them. '
-            f'Sources: {esc(sources)}.</footer>')
+            f'official items are filed under the department that issued them; tags also include '
+            f'results from a media search of UK outlets. Sources: {esc(sources)}.</footer>')
 
 
-def _page(title: str, mast: str, content: str) -> str:
+def _page(title: str, mast: str, content: str, extra_head: str = "", extra_script: str = "") -> str:
     return f"""<!doctype html>
 <html lang="en-GB"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{esc(title)}</title>{_FONTS}<style>{_CSS}</style></head>
+<title>{esc(title)}</title>{_FONTS}<style>{_CSS}</style>{extra_head}</head>
 <body id="top"><a class="skip" href="#main">Skip to content</a>
 {mast}{content}
-<script>{_JS}</script>
+<script>{_JS}</script>{extra_script}
 </body></html>"""
+
+
+def _updated(now: datetime) -> str:
+    return f"Updated {now:%H:%M}, {now:%A} {now.day} {now:%B}"
+
+
+def _window(hours: int) -> str:
+    return "three days" if hours == 72 else _plural(hours, "hour")
+
+
+# ---------------------------------------------------------------------------
+# Tags
+# ---------------------------------------------------------------------------
+
+def tag_sections(articles: list[Article], tags: tuple[Tag, ...]) -> list[tuple[str, str, list[Story]]]:
+    """[(slug, name, stories)] for each team tag, grouped and ordered like a department."""
+    matcher = TagMatcher(tags)
+    by_tag: dict[str, list[Article]] = {t.slug: [] for t in tags}
+    for a in articles:
+        for slug in matcher.tags_for(a):
+            if slug in by_tag:
+                by_tag[slug].append(a)
+    return [(t.slug, t.name, group_stories(sorted(by_tag[t.slug], key=lambda a: _sort_key(a, ""))))
+            for t in tags]
 
 
 # ---------------------------------------------------------------------------
 # Public entry points
 # ---------------------------------------------------------------------------
 
-def render_html(articles: list[Article], config: Config, hours: int,
-                only: str | None = None, site: bool = False) -> str:
-    """Render a page.
+def render_html(articles: list[Article], config: Config, hours: int, only: str | None = None,
+                site: bool = False, tags: tuple[Tag, ...] = ()) -> str:
+    """Render the homepage (only=None) or a department page (only=<slug>).
 
-    only=None   -> homepage: most reported + department overview. A single-file
-                   digest (site=False) also lists every department in full below.
-    only=<slug> -> that department's full page.
-    site=True   -> page belongs to the website from `build_site` (links between files).
+    site=False gives a single-file digest: the homepage then lists every
+    department in full, since there are no separate pages to link to.
     """
     names = {d.slug: d.name for d in config.departments}
     sections = build_sections(articles, config)
+    tsections = tag_sections(articles, tags) if site else []
     now = _local(datetime.now(timezone.utc))
     today = now.date()
-    updated = f"Updated {now:%H:%M}, {now:%A} {now.day} {now:%B}"
-    window = "three days" if hours == 72 else _plural(hours, "hour")
-    links = _Links(site, on_dept_page=bool(only))
+    links = _Links(site, depth=1 if only else 0)
 
     if only:
         slug, name, stories = next(s for s in sections if s[0] == only)
         n_official = sum(s.lead.is_official for s in stories)
-        sub = f"{_plural(len(stories), 'item')} in the last {window}"
+        sub = f"{_plural(len(stories), 'item')} in the last {_window(hours)}"
         sub += f", {n_official} of them official." if n_official else "."
-        groups = _department_groups(slug, stories, names, today) or \
+        groups = _groups(slug, stories, names, today) or \
             '<p class="empty">No coverage of this department in this period.</p>'
-        nav, select = _sidebar(sections, links, only)
+        nav, select = _sidebar(sections, tsections, links, f"dept:{slug}")
         content = (f'<div class="wrap frame">{nav}<main id="main">{select}'
                    f'<div class="dept-head"><div><h1 class="page-title">{esc(name)}</h1>'
                    f'<p class="page-sub">{sub}</p></div>{_tally(stories, today)}</div>'
                    f'{groups}<p id="no-match" class="no-match">No headlines match that filter.</p>'
                    f'{_footer(config)}</main></div>')
-        return _page(f"{name} | {SITE_NAME}", _masthead(links, updated, with_filter=True), content)
+        return _page(f"{name} | {SITE_NAME}", _masthead(links, _updated(now), with_filter=True), content)
 
     total = sum(len(s[2]) for s in sections)
     parts = [f'<div class="intro"><h1 class="page-title">Policy news, {now:%A} {now.day} {now:%B}</h1>',
-             f'<p class="page-sub">{_plural(total, "item")} from the last {window}, '
-             f'filed across {sum(1 for s in sections if s[2])} departments.</p></div>',
-             f'<div class="front">{_most_reported(sections, names, links) or _no_multi_outlet()}'
-             f'{_overview(sections, links, today)}</div>']
+             f'<p class="page-sub">{_plural(total, "item")} from the last {_window(hours)}, '
+             f'filed across {sum(1 for s in sections if s[2])} departments.</p></div>']
+    tables = _overview(sections, links.dept, today, "By department",
+                       "Items per day, darker where coverage is heaviest", "Department")
+    if tsections:
+        tables += _overview(tsections, links.tag, today, "Tags",
+                            f'Topics across departments. <a href="{links.channels}">Combine them in your own '
+                            f'channel</a>.', "Tag")
+    parts.append(f'<div class="front">{_most_reported(sections, names, links) or _no_multi_outlet()}'
+                 f'<div>{tables}</div></div>')
     if not site:
-        # Single-file digest: there are no department pages, so include everything.
         for slug, name, stories in sections:
             if stories:
                 parts.append(f'<section class="block" id="{slug}"><div class="block-head"><h2>{esc(name)}</h2>'
-                             f'</div>{_department_groups(slug, stories, names, today)}</section>')
+                             f'</div>{_groups(slug, stories, names, today)}</section>')
     parts.append('<p id="no-match" class="no-match">No headlines match that filter.</p>')
     parts.append(_footer(config))
     content = f'<div class="wrap single"><main id="main">{"".join(parts)}</main></div>'
-    return _page(f"{SITE_NAME}: {SITE_TAGLINE}", _masthead(links, updated, with_filter=not site), content)
+    return _page(f"{SITE_NAME}: {SITE_TAGLINE}", _masthead(links, _updated(now), with_filter=not site), content)
 
 
-def build_site(articles: list[Article], config: Config, hours: int, out_dir: Path) -> list[Path]:
+def render_tag_page(articles: list[Article], config: Config, hours: int, tags: tuple[Tag, ...], slug: str) -> str:
+    """A team tag's page, in the department page layout."""
+    names = {d.slug: d.name for d in config.departments}
+    sections = build_sections(articles, config)
+    tsections = tag_sections(articles, tags)
+    tag = next(t for t in tags if t.slug == slug)
+    stories = next(st for s, _, st in tsections if s == slug)
+    now = _local(datetime.now(timezone.utc))
+    links = _Links(True, depth=1)
+
+    searched = sum(1 for s in stories if s.lead.kind == SEARCH)
+    sub = f"{_plural(len(stories), 'item')} in the last {_window(hours)}"
+    sub += f", {searched} found by media search." if searched else "."
+    terms = ", ".join(tag.terms)
+    groups = _groups(slug, stories, names, now.date()) or \
+        '<p class="empty">Nothing matched this tag in this period.</p>'
+    nav, select = _sidebar(sections, tsections, links, f"tag:{slug}")
+    content = (f'<div class="wrap frame">{nav}<main id="main">{select}'
+               f'<div class="dept-head"><div><h1 class="page-title">{esc(tag.name)}</h1>'
+               f'<p class="page-sub">{sub}</p><p class="terms">Searches for: {esc(terms)}</p></div>'
+               f'{_tally(stories, now.date())}</div>'
+               f'{groups}<p id="no-match" class="no-match">No headlines match that filter.</p>'
+               f'{_footer(config)}</main></div>')
+    return _page(f"{tag.name} | {SITE_NAME}", _masthead(links, _updated(now), with_filter=True), content)
+
+
+def export_json(articles: list[Article], config: Config, hours: int, tags: tuple[Tag, ...]) -> dict:
+    """Everything collected in the window, as open data and for the Channels page.
+
+    Compact keys keep the file small: u url, t title, s summary, o outlet,
+    p published (ISO 8601), k kind, d departments, g team tags.
+    """
+    matcher = TagMatcher(tags)
+    epoch = datetime.min.replace(tzinfo=timezone.utc)
+    items = []
+    for a in sorted(articles, key=lambda a: a.published or epoch, reverse=True):
+        if not a.url.startswith(("http://", "https://")):
+            continue
+        items.append({"u": a.url, "t": a.title, "s": _truncate(a.summary), "o": a.outlet,
+                      "p": a.published.isoformat() if a.published else None, "k": a.kind,
+                      "d": sorted(a.departments), "g": matcher.tags_for(a)})
+    return {
+        "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "hours": hours,
+        "departments": [{"slug": d.slug, "name": d.name} for d in config.departments],
+        "tags": [{"slug": t.slug, "name": t.name, "terms": list(t.terms)} for t in tags],
+        "items": items,
+    }
+
+
+def render_channels_page(articles: list[Article], config: Config, hours: int, tags: tuple[Tag, ...],
+                         data: dict) -> str:
+    """The Channels page: a shell the browser app (static/channels.js) fills in.
+
+    The data is embedded so the page works offline and from file://.
+    """
+    sections = build_sections(articles, config)
+    tsections = tag_sections(articles, tags)
+    now = _local(datetime.now(timezone.utc))
+    links = _Links(True, depth=0)
+    nav, select = _sidebar(sections, tsections, links, "channels")
+    payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    content = (f'<div class="wrap frame">{nav}<main id="main">{select}'
+               f'<div id="channels-app" aria-live="polite"><p class="empty">Loading channels…</p></div>'
+               f'<noscript><p class="empty">Channels need JavaScript, which is turned off in this browser. '
+               f'Department and tag pages work without it.</p></noscript>'
+               f'{_footer(config)}</main></div>')
+    script = (f'<script id="channel-data" type="application/json">{payload}</script>'
+              f'<script>{_static("channels.js")}</script>')
+    return _page(f"Your channels | {SITE_NAME}", _masthead(links, _updated(now), with_filter=False), content,
+                 extra_head=f"<style>{_static('channels.css')}</style>", extra_script=script)
+
+
+def _static(name: str) -> str:
+    return (Path(__file__).parent / "static" / name).read_text(encoding="utf-8")
+
+
+def build_site(articles: list[Article], config: Config, hours: int, out_dir: Path,
+               tags: tuple[Tag, ...] = ()) -> list[Path]:
     """Write the static website to `out_dir`, ready for GitHub Pages or any web host.
 
-        index.html                  overview: most reported + department table
-        departments/<slug>.html     one full page per department
+        index.html                  overview: most reported, department and tag tables
+        departments/<slug>.html     one page per department
+        tags/<slug>.html            one page per team tag
+        channels.html               build and share your own channels
+        articles.json               everything collected in the window (open data)
 
-    Returns the paths written.
+    `articles` should include unfiled items (Store.recent(filed_only=False)) so
+    tags and channels can search everything. Returns the paths written.
     """
-    (out_dir / "departments").mkdir(parents=True, exist_ok=True)
+    for sub in ("departments", "tags"):
+        (out_dir / sub).mkdir(parents=True, exist_ok=True)
     (out_dir / ".nojekyll").touch()  # serve files as-is on GitHub Pages
 
-    written = [out_dir / "index.html"]
-    written[0].write_text(render_html(articles, config, hours, site=True), encoding="utf-8")
+    def write(path: Path, text: str) -> Path:
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    data = export_json(articles, config, hours, tags)
+    written = [write(out_dir / "index.html", render_html(articles, config, hours, site=True, tags=tags)),
+               write(out_dir / "channels.html", render_channels_page(articles, config, hours, tags, data)),
+               write(out_dir / "articles.json", json.dumps(data, ensure_ascii=False))]
     for dept in config.departments:
-        path = out_dir / "departments" / f"{dept.slug}.html"
-        path.write_text(render_html(articles, config, hours, only=dept.slug, site=True), encoding="utf-8")
-        written.append(path)
+        written.append(write(out_dir / "departments" / f"{dept.slug}.html",
+                             render_html(articles, config, hours, only=dept.slug, site=True, tags=tags)))
+    for tag in tags:
+        written.append(write(out_dir / "tags" / f"{tag.slug}.html",
+                             render_tag_page(articles, config, hours, tags, tag.slug)))
     return written

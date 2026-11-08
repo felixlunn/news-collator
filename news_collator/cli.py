@@ -8,6 +8,7 @@
     python -m news_collator check-feeds            # test every feed URL
     python -m news_collator audit                  # CSV of every article's classification
     python -m news_collator departments            # list department slugs
+    python -m news_collator tags                   # list team tags and their searches
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from .fetch import fetch_all, fetch_feed
 from .models import Article
 from .official import fetch_official
 from .store import Store
+from .tags import load_tags, search_tags
 
 DEFAULT_DB = Path("data/news.sqlite3")
 DEFAULT_OUT = Path("output")
@@ -38,7 +40,11 @@ DEFAULT_HOURS = 72  # look-back window; covers a full weekend on Monday mornings
 # ---------------------------------------------------------------------------
 
 def cmd_fetch(args: argparse.Namespace, config: Config) -> int:
-    """Fetch news and official sources, classify news, and store. Returns exit code."""
+    """Fetch news, official sources and tag searches; classify news; store.
+
+    Every news article is stored, filed or not, so tags and channels can search
+    all collected coverage. Returns a process exit code.
+    """
     articles, errors = fetch_all(config.outlets)
     classifier = Classifier.from_config(config, args.threshold)
     relevant = classifier.classify_all(articles)
@@ -47,9 +53,16 @@ def cmd_fetch(args: argparse.Namespace, config: Config) -> int:
     official, official_errors = fetch_official(config, args.official_hours)
     errors |= official_errors
 
+    # Team tags with a media search find coverage beyond our own feeds.
+    found: list[Article] = []
+    if not args.no_search:
+        tags, settings = load_tags(args.config)
+        found, search_errors = search_tags(tags, settings, args.official_hours)
+        errors |= search_errors
+
     args.db.parent.mkdir(parents=True, exist_ok=True)
     with Store(args.db) as store:
-        new = store.save(relevant + official)
+        new = store.save(articles + official + found)
         if args.prune_days:
             store.prune(args.prune_days)
         # Re-sort everything already stored under the current rules, so keyword
@@ -58,8 +71,8 @@ def cmd_fetch(args: argparse.Namespace, config: Config) -> int:
         classifier.classify_all(stored)
         store.save(stored)
 
-    print(f"Fetched {len(articles)} news articles ({len(relevant)} matched a department) "
-          f"and {len(official)} official items; {new} new.")
+    print(f"Fetched {len(articles)} news articles ({len(relevant)} matched a department), "
+          f"{len(official)} official items and {len(found)} tag search results; {new} new.")
     if errors:
         print(f"{len(errors)} feed(s) failed (run `check-feeds` for detail).", file=sys.stderr)
     # Only treat it as a failure if *nothing* came back.
@@ -85,9 +98,10 @@ def cmd_digest(args: argparse.Namespace, config: Config) -> int:
 
 def cmd_site(args: argparse.Namespace, config: Config) -> int:
     """Build the multi-page static website from the database."""
+    tags, _ = load_tags(args.config)
     with Store(args.db) as store:
-        articles = store.recent(hours=args.hours)
-    pages = build_site(articles, config, args.hours, args.out)
+        articles = store.recent(hours=args.hours, filed_only=False)
+    pages = build_site(articles, config, args.hours, args.out, tags=tags)
     print(f"Wrote {len(pages)} pages to {args.out}/ ({len(articles)} articles).")
     return 0
 
@@ -179,6 +193,19 @@ def cmd_audit(args: argparse.Namespace, config: Config) -> int:
     return 0
 
 
+def cmd_tags(args: argparse.Namespace, config: Config) -> int:
+    """List team tags, their terms and the media search each runs."""
+    from .tags import gdelt_query
+    tags, settings = load_tags(args.config)
+    if not tags:
+        print("No team tags defined (config/tags.toml).")
+    for t in tags:
+        print(f"{t.slug:20} {t.name}\n{'':20} terms: {', '.join(t.terms)}")
+        if t.search and settings.enabled:
+            print(f"{'':20} search: {gdelt_query(t, settings.country)}")
+    return 0
+
+
 def cmd_departments(args: argparse.Namespace, config: Config) -> int:
     for d in config.departments:
         print(f"{d.slug:15} {d.name}")
@@ -204,11 +231,13 @@ def build_parser() -> argparse.ArgumentParser:
                        help="delete stored articles older than this (0 = keep forever)")
     fetch.add_argument("--official-hours", type=int, default=DEFAULT_HOURS,
                        help="how far back to request written statements (default %(default)s)")
+    fetch.add_argument("--no-search", action="store_true", help="skip team tags' media searches")
 
     digest = sub.add_parser("digest", help="render a digest from stored articles")
     run = sub.add_parser("run", help="fetch then digest")
     run.add_argument("--prune-days", type=int, default=30)
     run.add_argument("--official-hours", type=int, default=DEFAULT_HOURS)
+    run.add_argument("--no-search", action="store_true")
     for sp in (digest, run):
         sp.add_argument("--dept", help="only this department (see `departments`)")
         sp.add_argument("--hours", type=int, default=DEFAULT_HOURS,
@@ -230,12 +259,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("check-feeds", help="test every configured feed")
     sub.add_parser("departments", help="list department slugs")
+    sub.add_parser("tags", help="list team tags and their media searches")
     return p
 
 
 COMMANDS = {
     "fetch": cmd_fetch, "digest": cmd_digest, "site": cmd_site, "run": cmd_run, "explain": cmd_explain,
-    "check-feeds": cmd_check_feeds, "audit": cmd_audit, "departments": cmd_departments,
+    "check-feeds": cmd_check_feeds, "audit": cmd_audit, "departments": cmd_departments, "tags": cmd_tags,
 }
 
 

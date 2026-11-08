@@ -27,11 +27,13 @@ def normalise_url(url: str) -> str:
     return urlunsplit(("https", parts.netloc.lower(), path, urlencode(query), ""))
 
 
-# Article kinds. Anything other than NEWS is an official source, filed by the
-# issuing department and pinned to the top of that department's list.
+# Article kinds. Official kinds are filed by the issuing department and pinned
+# to the top of that department's list; search results only appear under tags.
 NEWS = "news"
 GOVUK = "govuk"                          # GOV.UK announcement (press release, speech, …)
 WRITTEN_STATEMENT = "written_statement"  # written ministerial statement to Parliament
+SEARCH = "search"                        # found by a team tag's media search (tags.py)
+OFFICIAL_KINDS = frozenset({GOVUK, WRITTEN_STATEMENT})
 KIND_LABELS = {GOVUK: "GOV.UK", WRITTEN_STATEMENT: "Written statement"}
 
 
@@ -47,10 +49,13 @@ class Article:
     kind: str = NEWS
     # Filled in by the classifier: department slug -> relevance score.
     departments: dict[str, int] = field(default_factory=dict)
+    # Team tags whose media search found this article (tag matching by text is
+    # done at render time; see tags.TagMatcher).
+    tags: list[str] = field(default_factory=list)
 
     @property
     def is_official(self) -> bool:
-        return self.kind != NEWS
+        return self.kind in OFFICIAL_KINDS
 
     @property
     def id(self) -> str:

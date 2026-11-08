@@ -73,3 +73,40 @@ feeds = [
 
 # Government announcements and written statements are configured separately
 # in official.toml, so they can be filed by issuing department.
+
+# ---------------------------------------------------------------------------
+# General and world news. These widen what tags and channels can search (an
+# "Iran" tag needs world coverage, not just politics sections). Their articles
+# are classified like any other, so they also feed departments where relevant.
+# ---------------------------------------------------------------------------
+
+[[outlet]]
+name = "BBC News"
+enabled = true
+feeds = [
+  "https://feeds.bbci.co.uk/news/rss.xml",
+  "https://feeds.bbci.co.uk/news/world/rss.xml",
+]
+
+[[outlet]]
+name = "The Guardian"
+enabled = true
+feeds = [
+  "https://www.theguardian.com/uk/rss",
+  "https://www.theguardian.com/world/rss",
+]
+
+[[outlet]]
+name = "Sky News"
+enabled = true
+feeds = [
+  "https://feeds.skynews.com/feeds/rss/home.xml",
+  "https://feeds.skynews.com/feeds/rss/world.xml",
+]
+
+[[outlet]]
+name = "The Independent"
+enabled = true
+feeds = [
+  "https://www.independent.co.uk/news/world/rss",
+]

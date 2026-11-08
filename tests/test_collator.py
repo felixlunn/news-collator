@@ -13,8 +13,9 @@ from news_collator.fetch import decompress, parse_date, parse_feed, stale_warnin
 import json
 import sqlite3
 
-from news_collator.models import GOVUK, WRITTEN_STATEMENT, Article, normalise_url
+from news_collator.models import GOVUK, SEARCH, WRITTEN_STATEMENT, Article, normalise_url
 from news_collator.official import _body_lookup, _dedupe_bicameral, parse_statements
+from news_collator.tags import Tag, TagMatcher, gdelt_query, parse_gdelt
 from news_collator.store import Store
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -124,18 +125,34 @@ class TestDigestAndStore(unittest.TestCase):
 
     def test_build_site(self):
         arts = Classifier.from_config(CONFIG).classify_all(load_fixture_articles())
+        tags = (Tag("boats", "Small boats", ("small boats",)),)
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
-            pages = build_site(arts, CONFIG, 24, out)
-            self.assertEqual(len(pages), 1 + len(CONFIG.departments))
+            pages = build_site(arts, CONFIG, 24, out, tags=tags)
+            # index, channels, articles.json, one page per department and per tag
+            self.assertEqual(len(pages), 3 + len(CONFIG.departments) + len(tags))
             self.assertTrue((out / ".nojekyll").exists())
             index = (out / "index.html").read_text()
             self.assertIn('href="departments/moj.html"', index)
+            self.assertIn('href="tags/boats.html"', index)
             moj = (out / "departments" / "moj.html").read_text()
             self.assertIn('href="../index.html"', moj)
-            self.assertIn('href="moj.html" aria-current="page"', moj)
+            self.assertIn('href="../departments/moj.html" aria-current="page"', moj)
+            self.assertIn('href="../channels.html"', moj)
             self.assertIn("Prisons near capacity", moj)
             self.assertNotIn("small boats", moj)
+            boats = (out / "tags" / "boats.html").read_text()
+            self.assertIn("Small boats crossings: Home Secretary sets out new plan", boats)  # grouped story lead
+            self.assertIn("also <a", boats)  # with the other outlet's version linked
+            self.assertNotIn("Prisons near capacity", boats)
+            channels = (out / "channels.html").read_text()
+            self.assertIn('id="channels-app"', channels)
+            self.assertIn('id="channel-data"', channels)
+            data = json.loads((out / "articles.json").read_text())
+            self.assertEqual({t["slug"] for t in data["tags"]}, {"boats"})
+            by_title = {i["t"]: i for i in data["items"]}
+            self.assertIn("boats", by_title["Home Secretary unveils plan to curb small boats crossings"]["g"])
+            self.assertIn("moj", by_title["Prisons near capacity as early release scheme extended"]["d"])
 
 
 class TestOfficial(unittest.TestCase):
@@ -206,6 +223,56 @@ class TestOfficial(unittest.TestCase):
                 a.published = datetime.now(timezone.utc)
                 store.save([a])
                 self.assertEqual(store.recent(hours=1)[0].kind, WRITTEN_STATEMENT)
+
+
+class TestTags(unittest.TestCase):
+    TAG = Tag("vawg", "Violence against women and girls",
+              ("VAWG", "violence against women", "domestic abuse", "rape conviction*"), exclude=("football",))
+
+    def test_matcher_uses_department_term_syntax(self):
+        m = TagMatcher((self.TAG,))
+        def tags(title, summary=""):
+            return m.tags_for(Article(url="https://x", title=title, outlet="t", summary=summary))
+        self.assertEqual(tags("New VAWG strategy published"), ["vawg"])
+        self.assertEqual(tags("Charity warns", "Domestic abuse referrals rose"), ["vawg"])
+        self.assertEqual(tags("Rape convictions fall again"), ["vawg"])      # wildcard
+        self.assertEqual(tags("Hospitals vawg"), [])                          # acronym is case-sensitive
+        self.assertEqual(tags("Domestic abuse campaign at football final"), [])  # excluded
+        found = Article(url="https://x", title="Unrelated words", outlet="t", tags=["vawg"])
+        self.assertEqual(m.tags_for(found), ["vawg"])                        # found by media search
+
+    def test_gdelt_query(self):
+        q = gdelt_query(self.TAG, "UK")
+        self.assertEqual(q, '(VAWG OR "violence against women" OR "domestic abuse" OR "rape conviction") '
+                            '-football sourcecountry:UK sourcelang:english')
+        self.assertEqual(gdelt_query(Tag("iran", "Iran", ("Iran",)), "UK"), "Iran sourcecountry:UK sourcelang:english")
+
+    def test_parse_gdelt(self):
+        payload = json.loads((FIXTURES / "gdelt_artlist.json").read_text())
+        found = parse_gdelt(payload, "vawg")
+        self.assertEqual(len(found), 2)  # untitled result dropped
+        self.assertEqual(found[0].outlet, "The Times")          # known domain gets a display name
+        self.assertEqual(found[1].outlet, "localpaper.co.uk")   # unknown domain shown as is
+        self.assertEqual(found[0].kind, SEARCH)
+        self.assertEqual(found[0].tags, ["vawg"])
+        self.assertEqual(found[0].published, datetime(2026, 11, 8, 9, 15, tzinfo=timezone.utc))
+
+    def test_store_keeps_search_tags_and_upgrades_to_news(self):
+        url = "https://www.thetimes.com/uk/politics/article/vawg-strategy"
+        found = Article(url=url, title="Ministers publish VAWG strategy", outlet="The Times",
+                        published=datetime.now(timezone.utc), kind=SEARCH, tags=["vawg"])
+        news = Article(url=url, title="Ministers publish VAWG strategy", outlet="The Times",
+                       summary="The Home Office strategy...", published=found.published,
+                       departments={"home-office": 8})
+        with tempfile.TemporaryDirectory() as tmp, Store(Path(tmp) / "t.db") as store:
+            store.save([found])
+            self.assertEqual(store.recent(hours=1), [])  # search results aren't filed under departments
+            self.assertEqual(store.recent(hours=1, filed_only=False)[0].tags, ["vawg"])
+            store.save([news])                       # same URL arrives from an outlet feed
+            a = store.recent(hours=1)[0]
+            self.assertEqual((a.kind, a.departments, a.tags), ("news", {"home-office": 8}, ["vawg"]))
+            store.save([found])                      # a later search result doesn't wipe departments
+            self.assertEqual(store.recent(hours=1)[0].departments, {"home-office": 8})
 
 
 # Real headlines from the November 2026 audit of live feeds, with the decision a

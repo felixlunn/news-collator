@@ -6,7 +6,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .models import Article
+from .models import SEARCH, Article
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS articles (
@@ -17,13 +17,19 @@ CREATE TABLE IF NOT EXISTS articles (
     outlet      TEXT NOT NULL,
     published   TEXT,                      -- ISO 8601 UTC, may be NULL
     first_seen  TEXT NOT NULL,             -- ISO 8601 UTC, when we first fetched it
-    kind        TEXT NOT NULL DEFAULT 'news'  -- news | govuk | written_statement
+    kind        TEXT NOT NULL DEFAULT 'news'  -- news | govuk | written_statement | search
 );
 CREATE TABLE IF NOT EXISTS article_departments (
     article_id  TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
     department  TEXT NOT NULL,
     score       INTEGER NOT NULL,
     PRIMARY KEY (article_id, department)
+);
+-- Team tags whose media search found an article (text matches are computed at render time).
+CREATE TABLE IF NOT EXISTS article_tags (
+    article_id  TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    tag         TEXT NOT NULL,
+    PRIMARY KEY (article_id, tag)
 );
 CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published);
 CREATE INDEX IF NOT EXISTS idx_ad_department ON article_departments(department);
@@ -54,10 +60,12 @@ class Store:
         self.close()
 
     def save(self, articles: list[Article]) -> int:
-        """Insert new articles and (re)write their department tags.
+        """Insert new articles, (re)write their departments and add search tags.
 
-        Existing articles keep their original first_seen time; their department
-        tags are refreshed, so re-running after tuning keywords takes effect.
+        Existing articles keep their original first_seen time; their departments
+        are refreshed, so re-running after tuning keywords takes effect. A media
+        search result never overwrites anything: if the same URL later arrives
+        from an outlet feed, it is upgraded to a news article and classified.
         Returns the number of articles that were new.
         """
         now = datetime.now(timezone.utc).isoformat()
@@ -71,27 +79,38 @@ class Store:
                      art.published.isoformat() if art.published else None, now, art.kind),
                 )
                 new += cur.rowcount
-                self.conn.execute("DELETE FROM article_departments WHERE article_id = ?", (art.id,))
-                self.conn.executemany(
-                    "INSERT INTO article_departments (article_id, department, score) VALUES (?, ?, ?)",
-                    [(art.id, slug, score) for slug, score in art.departments.items()],
-                )
+                if cur.rowcount == 0 and art.kind != SEARCH:
+                    # Seen first via a tag search; now we have the feed's fuller record.
+                    self.conn.execute("UPDATE articles SET kind = ?, summary = ?, outlet = ? "
+                                      "WHERE id = ? AND kind = ?",
+                                      (art.kind, art.summary, art.outlet, art.id, SEARCH))
+                if art.kind != SEARCH:
+                    self.conn.execute("DELETE FROM article_departments WHERE article_id = ?", (art.id,))
+                    self.conn.executemany(
+                        "INSERT INTO article_departments (article_id, department, score) VALUES (?, ?, ?)",
+                        [(art.id, slug, score) for slug, score in art.departments.items()],
+                    )
+                self.conn.executemany("INSERT OR IGNORE INTO article_tags (article_id, tag) VALUES (?, ?)",
+                                      [(art.id, tag) for tag in art.tags])
         return new
 
-    def recent(self, hours: int = 24, department: str | None = None) -> list[Article]:
+    def recent(self, hours: int = 24, department: str | None = None,
+               filed_only: bool = True) -> list[Article]:
         """Articles published (or, if undated, first seen) in the last `hours`.
 
-        Sorted newest first, each with its full department mapping.
+        Sorted newest first, each with its departments and search tags. By
+        default only articles filed under a department are returned; with
+        filed_only=False, everything (for tag pages and channels).
         """
         since_dt = datetime.now(timezone.utc) - timedelta(hours=hours)
         since, since_day = since_dt.isoformat(), since_dt.date().isoformat()
         # Written statements only carry a date (stored as midnight), so they are
         # compared by day: one made on the window's first day is included.
-        sql = """
+        sql = f"""
             SELECT a.id, a.url, a.title, a.summary, a.outlet, a.published, a.kind,
                    ad.department, ad.score
             FROM articles a
-            JOIN article_departments ad ON ad.article_id = a.id
+            {"JOIN" if filed_only else "LEFT JOIN"} article_departments ad ON ad.article_id = a.id
             WHERE CASE WHEN a.kind = 'written_statement' AND a.published IS NOT NULL
                        THEN substr(a.published, 1, 10) >= ?
                        ELSE COALESCE(a.published, a.first_seen) >= ? END
@@ -111,7 +130,15 @@ class Store:
                     published=datetime.fromisoformat(published) if published else None,
                     kind=kind,
                 )
-            art.departments[dept] = score
+            if dept is not None:
+                art.departments[dept] = score
+
+        # Attach search tags in one query.
+        if by_id:
+            marks = ",".join("?" * len(by_id))
+            for _id, tag in self.conn.execute(
+                    f"SELECT article_id, tag FROM article_tags WHERE article_id IN ({marks})", list(by_id)):
+                by_id[_id].tags.append(tag)
         return list(by_id.values())
 
     def news_articles(self) -> list[Article]:

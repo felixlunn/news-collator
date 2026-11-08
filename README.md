@@ -40,6 +40,7 @@ hourly) builds up a history and nothing is lost when an item drops off a feed.
 | `check-feeds` | Test every feed URL and report item counts, errors and stale feeds. |
 | `audit` | Write a CSV of every fetched article with its scores and matched terms, for tuning. The workflow also saves one each run as a downloadable artifact. |
 | `departments` | List department slugs. |
+| `tags` | List team tags and the media search each runs. |
 
 Global options: `--config DIR`, `--db PATH`, `--threshold N`, `-v`.
 
@@ -63,6 +64,7 @@ Everything editable lives in `config/`:
   obituaries. Terms are whole-word and case-insensitive; `prison*` matches any
   ending; ALL-CAPS acronyms and terms starting `=` (e.g. `=Budget`) are
   case-sensitive.
+- **`tags.toml`** — team tags; see *Tags and channels* below.
 - **`people.toml`** — ministers' names per department, scored as keywords.
   **Update it at every reshuffle**; a warning is logged once it is six months old.
 - **`official.toml`** — switches GOV.UK announcements and written statements on
@@ -90,6 +92,29 @@ To build the site locally: `python -m news_collator fetch && python -m news_coll
 (via the Actions cache, pruned after 14 days), so stories stay on the site for
 the whole 72 hours even after they drop off an outlet's feed.
 
+## Tags and channels
+
+**Team tags** (`config/tags.toml`) are topics that cut across departments, such
+as *Violence against women and girls* or *Iran*. Each tag is a name plus search
+terms, using the same syntax as department keywords. On every rebuild a tag:
+
+1. collects matching articles from the outlet feeds, and
+2. runs a media search of UK outlets through [GDELT](https://www.gdeltproject.org/),
+   an open index of world news, so it also finds coverage from outlets we don't
+   follow directly. Set `search = false` on a tag to skip this.
+
+Each team tag gets a page (`tags/<slug>.html`) and a row in the homepage's Tags
+table. Run `python -m news_collator tags` to see the search each tag runs.
+
+**Channels** (`channels.html`) let anyone build their own feed: any mix of
+departments, team tags and personal tags they write themselves. Personal tags
+search everything the site has collected. Channels are saved in the reader's
+browser (there's no server or log-in); the *Copy share link* button encodes the
+whole channel in a link, so colleagues can open it and save their own copy.
+
+**Open data:** `articles.json` holds every item collected in the window with its
+departments and tags.
+
 ## Tests
 
 ```bash
@@ -107,6 +132,8 @@ news_collator/
   config.py          config loading
   fetch.py           concurrent feed download + RSS/Atom parsing
   official.py        GOV.UK announcements and Parliament written statements
+  tags.py            team tags and GDELT media search
+  static/            Channels page script and styles
   classify.py        rule-based department scoring
   store.py           SQLite persistence
   digest.py          story grouping and ordering, Markdown digest

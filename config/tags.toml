@@ -1,0 +1,34 @@
+# ---------------------------------------------------------------------------
+# Team tags: topics that cut across departments. Each tag gets its own page on
+# the website and can be combined with departments in a channel.
+#
+# A tag collects:
+#   1. articles from our outlet feeds whose headline or summary contains any
+#      of its terms (and none of its exclude terms), and
+#   2. if `search = true` (the default), results of a media search run on
+#      every rebuild against GDELT (an open index of world news), limited to
+#      UK outlets. These find coverage from outlets we don't follow directly.
+#
+# Term syntax is the same as departments.toml: case-insensitive whole words,
+# a trailing * for any ending, ALL-CAPS acronyms and =terms are case-sensitive.
+# The media search ignores * and case, and skips terms under 3 characters.
+#
+# Readers can also create personal tags on the website's Channels page; those
+# live in their browser and search everything the site has collected.
+#
+# Run `python -m news_collator tags` to check the search each tag will run.
+# ---------------------------------------------------------------------------
+
+[search]
+enabled = true
+country = "UK"   # GDELT source-country code; UK = United Kingdom
+
+[tags.vawg]
+name = "Violence against women and girls"
+terms = ["VAWG", "violence against women", "violence against women and girls", "domestic abuse",
+         "domestic violence", "femicide", "coercive control", "stalking", "drink spiking", "needle spiking",
+         "rape conviction*", "rape prosecution*"]
+
+[tags.iran]
+name = "Iran"
+terms = ["Iran", "Iranian", "Tehran", "IRGC", "Khamenei", "Revolutionary Guard*"]
