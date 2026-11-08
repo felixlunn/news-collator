@@ -15,7 +15,8 @@ import sqlite3
 
 from news_collator.models import GOVUK, SEARCH, WRITTEN_STATEMENT, Article, normalise_url
 from news_collator.official import _body_lookup, _dedupe_bicameral, parse_statements
-from news_collator.tags import Tag, TagMatcher, gdelt_query, parse_gdelt
+from news_collator.tags import Tag, TagMatcher, gdelt_query, google_news_query, parse_gdelt, parse_google_news
+from news_collator.web import drop_duplicate_search_results
 from news_collator.store import Store
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -256,6 +257,24 @@ class TestTags(unittest.TestCase):
         self.assertEqual(found[0].kind, SEARCH)
         self.assertEqual(found[0].tags, ["vawg"])
         self.assertEqual(found[0].published, datetime(2026, 11, 8, 9, 15, tzinfo=timezone.utc))
+
+    def test_google_news(self):
+        self.assertEqual(google_news_query(self.TAG, 72),
+                         '(VAWG OR "violence against women" OR "domestic abuse" OR "rape conviction") '
+                         '-football when:3d')
+        found = parse_google_news((FIXTURES / "google_news.xml").read_bytes(), "iran")
+        self.assertEqual([(a.title, a.outlet) for a in found],
+                         [("Iran warns UK over sanctions on Revolutionary Guard", "BBC"),
+                          ("UK sanctions Iranian officials over crackdown", "The Times")])
+        self.assertTrue(all(a.kind == SEARCH and a.tags == ["iran"] and not a.summary for a in found))
+
+    def test_search_results_duplicating_feed_articles_are_dropped(self):
+        feed = Article(url="https://www.bbc.co.uk/news/x", title="Iran warns UK over sanctions on Revolutionary Guard",
+                       outlet="BBC News")
+        found = parse_google_news((FIXTURES / "google_news.xml").read_bytes(), "iran")
+        kept = drop_duplicate_search_results([feed] + found)
+        self.assertEqual([a.title for a in kept], [feed.title, "UK sanctions Iranian officials over crackdown"])
+        self.assertEqual(feed.tags, ["iran"])  # the feed article inherits the search tag
 
     def test_store_keeps_search_tags_and_upgrades_to_news(self):
         url = "https://www.thetimes.com/uk/politics/article/vawg-strategy"

@@ -195,14 +195,17 @@ def cmd_audit(args: argparse.Namespace, config: Config) -> int:
 
 def cmd_tags(args: argparse.Namespace, config: Config) -> int:
     """List team tags, their terms and the media search each runs."""
-    from .tags import gdelt_query
+    from .tags import gdelt_query, google_news_query
     tags, settings = load_tags(args.config)
     if not tags:
         print("No team tags defined (config/tags.toml).")
     for t in tags:
         print(f"{t.slug:20} {t.name}\n{'':20} terms: {', '.join(t.terms)}")
         if t.search and settings.enabled:
-            print(f"{'':20} search: {gdelt_query(t, settings.country)}")
+            queries = {"gdelt": lambda: gdelt_query(t, settings.country),
+                       "google_news": lambda: google_news_query(t, DEFAULT_HOURS)}
+            for provider in settings.providers:
+                print(f"{'':20} {provider}: {queries[provider]()}")
     return 0
 
 

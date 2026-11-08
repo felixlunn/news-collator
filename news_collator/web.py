@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -671,6 +672,23 @@ def _static(name: str) -> str:
     return (Path(__file__).parent / "static" / name).read_text(encoding="utf-8")
 
 
+def drop_duplicate_search_results(articles: list[Article]) -> list[Article]:
+    """Remove media-search results that repeat a headline we already have from
+    an outlet feed (search links often go via a redirect, so URLs differ).
+    The kept feed article inherits the search result's tags."""
+    def key(title: str) -> str:
+        return " ".join(re.findall(r"[a-z0-9]+", title.lower()))
+    by_title = {key(a.title): a for a in articles if a.kind != SEARCH}
+    kept = []
+    for a in articles:
+        twin = by_title.get(key(a.title)) if a.kind == SEARCH else None
+        if twin is None:
+            kept.append(a)
+        else:
+            twin.tags = sorted(set(twin.tags) | set(a.tags))
+    return kept
+
+
 def build_site(articles: list[Article], config: Config, hours: int, out_dir: Path,
                tags: tuple[Tag, ...] = ()) -> list[Path]:
     """Write the static website to `out_dir`, ready for GitHub Pages or any web host.
@@ -684,6 +702,7 @@ def build_site(articles: list[Article], config: Config, hours: int, out_dir: Pat
     `articles` should include unfiled items (Store.recent(filed_only=False)) so
     tags and channels can search everything. Returns the paths written.
     """
+    articles = drop_duplicate_search_results(articles)
     for sub in ("departments", "tags"):
         (out_dir / sub).mkdir(parents=True, exist_ok=True)
     (out_dir / ".nojekyll").touch()  # serve files as-is on GitHub Pages

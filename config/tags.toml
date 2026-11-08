@@ -6,8 +6,8 @@
 #   1. articles from our outlet feeds whose headline or summary contains any
 #      of its terms (and none of its exclude terms), and
 #   2. if `search = true` (the default), results of a media search run on
-#      every rebuild against GDELT (an open index of world news), limited to
-#      UK outlets. These find coverage from outlets we don't follow directly.
+#      every rebuild, limited to UK outlets (see [search] below). These find
+#      coverage from outlets we don't follow directly.
 #
 # Term syntax is the same as departments.toml: case-insensitive whole words,
 # a trailing * for any ending, ALL-CAPS acronyms and =terms are case-sensitive.
@@ -22,6 +22,10 @@
 [search]
 enabled = true
 country = "UK"   # GDELT source-country code; UK = United Kingdom
+# Tried in order until one answers. GDELT is an open news index but often
+# rate-limits shared servers such as GitHub's; Google News (UK edition) is the
+# fallback. Remove either to stop using it.
+providers = ["gdelt", "google_news"]
 
 [tags.vawg]
 name = "Violence against women and girls"
